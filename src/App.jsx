@@ -100,6 +100,87 @@ const calculateStreak = (streak) => {
   };
 };
 
+// PWA Install Component
+const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showPrompt, setShowPrompt] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowPrompt(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = useCallback(async () => {
+    if (!deferredPrompt) return;
+
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setShowPrompt(false);
+    }
+  }, [deferredPrompt]);
+
+  const dismissPrompt = useCallback(() => {
+    setShowPrompt(false);
+    setDeferredPrompt(null);
+  }, []);
+
+  if (!showPrompt || !deferredPrompt) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, y: 100 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 100 }}
+        className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-sm z-50"
+      >
+        <div className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl p-4`}>
+          <div className="flex items-start gap-3">
+            <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+              <FiDownload className="text-indigo-600 dark:text-indigo-400" size={20} />
+            </div>
+            <div className="flex-1">
+              <h3 className={`font-semibold ${colors.text} mb-1`}>Install DoIT</h3>
+              <p className={`text-sm ${colors.muted} mb-3`}>
+                Add DoIT to your home screen for quick access and a better experience!
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleInstall}
+                  className={`px-3 py-2 rounded-lg ${colors.primary} text-white text-sm font-medium hover:opacity-90 transition-opacity`}
+                >
+                  Install
+                </button>
+                <button
+                  onClick={dismissPrompt}
+                  className={`px-3 py-2 rounded-lg ${colors.secondary} ${colors.text} text-sm hover:opacity-80 transition-opacity`}
+                >
+                  Not now
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={dismissPrompt}
+              className={`${colors.muted} hover:${colors.text} transition-colors`}
+            >
+              <FiX size={18} />
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+});
+
 // Custom Date Picker Component
 const CustomDatePicker = React.memo(function CustomDatePicker({
   selectedDate,
@@ -558,34 +639,30 @@ const TaskItem = React.memo(function TaskItem({
   );
 });
 
-// Modal Components
-const ModalBackdrop = ({ children, onClose, isOpen }) => {
+// Modal Components - Fixed to prevent double rendering
+const ModalBackdrop = React.memo(function ModalBackdrop({ children, onClose }) {
   const backdropRef = useRef(null);
 
+  const handleClickOutside = useCallback((event) => {
+    if (backdropRef.current === event.target) {
+      onClose();
+    }
+  }, [onClose]);
+
+  const handleEsc = useCallback((event) => {
+    if (event.key === 'Escape') {
+      onClose();
+    }
+  }, [onClose]);
+
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (backdropRef.current === event.target) {
-        onClose();
-      }
-    }
-
-    function handleEsc(event) {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEsc);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('keydown', handleEsc);
-      };
-    }
-  }, [onClose, isOpen]);
-
-  if (!isOpen) return null;
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [handleClickOutside, handleEsc]);
 
   return (
     <motion.div
@@ -599,65 +676,50 @@ const ModalBackdrop = ({ children, onClose, isOpen }) => {
       {children}
     </motion.div>
   );
-};
+});
 
 // Main DoIT Component
 export default function DoIT() {
   const inputRef = useRef(null);
 
-  // Consolidated modal state - single source of truth
-  const [modal, setModal] = useState({
-    type: null,
-    data: null,
-    isOpen: false
-  });
+  // Simplified modal state
+  const [modal, setModal] = useState(null);
 
-  // State
+  // State with better initialization
   const [tasks, setTasks] = useState(() => {
     try {
-      const savedTasks = localStorage.getItem('doit-tasks');
-      return savedTasks ? JSON.parse(savedTasks) : [];
-    } catch {
-      return [];
-    }
+      const saved = localStorage?.getItem('doit-tasks');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
   });
 
   const [filter, setFilter] = useState(() => {
     try {
-      const savedFilter = sessionStorage.getItem('doit-filter');
-      return savedFilter || 'active';
-    } catch {
-      return 'active';
-    }
+      const saved = sessionStorage?.getItem('doit-filter');
+      return saved || 'active';
+    } catch { return 'active'; }
   });
 
   const [theme, setTheme] = useState(() => {
     try {
-      const savedTheme = localStorage.getItem('doit-theme');
-      return savedTheme || 'light';
-    } catch {
-      return 'light';
-    }
+      const saved = localStorage?.getItem('doit-theme');
+      return saved || 'light';
+    } catch { return 'light'; }
   });
 
-  const [quote, setQuote] = useState(() => getRandomItem(MOTIVATIONAL_QUOTES));
+  const [quote] = useState(() => getRandomItem(MOTIVATIONAL_QUOTES));
   const [toasts, setToasts] = useState([]);
   const [meta, setMeta] = useState(() => {
     try {
-      const savedMeta = localStorage.getItem('doit-meta');
-      return savedMeta ? JSON.parse(savedMeta) : {
+      const saved = localStorage?.getItem('doit-meta');
+      return saved ? JSON.parse(saved) : {
         points: 0,
         streak: { current: 0, lastDate: null },
         theme: 'light',
         version: 2
       };
     } catch {
-      return {
-        points: 0,
-        streak: { current: 0, lastDate: null },
-        theme: 'light',
-        version: 2
-      };
+      return { points: 0, streak: { current: 0, lastDate: null }, theme: 'light', version: 2 };
     }
   });
 
@@ -697,90 +759,80 @@ export default function DoIT() {
     };
   }, [tasks]);
 
-  // Modal handlers
+  // Simplified modal handlers
   const openModal = useCallback((type, data = null) => {
-    setModal({ type, data, isOpen: true });
+    setModal({ type, data });
   }, []);
 
   const closeModal = useCallback(() => {
-    setModal({ type: null, data: null, isOpen: false });
+    setModal(null);
   }, []);
 
-  // Save to localStorage with error handling
+  // Optimized persistence effects
   useEffect(() => {
-    try {
-      localStorage.setItem('doit-tasks', JSON.stringify(tasks));
-    } catch (error) {
-      console.warn('Failed to save tasks to localStorage:', error);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('doit-tasks', JSON.stringify(tasks));
+      } catch (e) {
+        console.warn('Failed to save tasks:', e);
+      }
     }
   }, [tasks]);
 
   useEffect(() => {
-    try {
-      sessionStorage.setItem('doit-filter', filter);
-    } catch (error) {
-      console.warn('Failed to save filter to sessionStorage:', error);
+    if (typeof sessionStorage !== 'undefined') {
+      try {
+        sessionStorage.setItem('doit-filter', filter);
+      } catch (e) {
+        console.warn('Failed to save filter:', e);
+      }
     }
   }, [filter]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('doit-theme', theme);
-      setMeta(prev => ({ ...prev, theme }));
-    } catch (error) {
-      console.warn('Failed to save theme to localStorage:', error);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('doit-theme', theme);
+        localStorage.setItem('doit-meta', JSON.stringify({ ...meta, theme }));
+      } catch (e) {
+        console.warn('Failed to save theme/meta:', e);
+      }
     }
-  }, [theme]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('doit-meta', JSON.stringify(meta));
-    } catch (error) {
-      console.warn('Failed to save meta to localStorage:', error);
-    }
-  }, [meta]);
+  }, [theme, meta]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setQuote(getRandomItem(MOTIVATIONAL_QUOTES));
-    }, 45000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // Handlers with better performance
+  // Optimized handlers
   const addTask = useCallback((inputValue, selectedDateValue) => {
     if (!inputValue.trim() || isProcessing) return;
 
     setIsProcessing(true);
 
-    // Use setTimeout to prevent blocking
-    setTimeout(() => {
-      const newTask = {
-        id: genId(),
-        text: inputValue.trim().slice(0, 500),
-        completed: false,
-        createdAt: Date.now(),
-        priority: 'medium',
-        dueDate: selectedDateValue ? selectedDateValue.getTime() : null
-      };
+    const newTask = {
+      id: genId(),
+      text: inputValue.trim().slice(0, 500),
+      completed: false,
+      createdAt: Date.now(),
+      priority: 'medium',
+      dueDate: selectedDateValue ? selectedDateValue.getTime() : null
+    };
 
-      setTasks(prev => [newTask, ...prev]);
-      showToast("Task added successfully!");
-      setIsProcessing(false);
-    }, 0);
+    setTasks(prev => [newTask, ...prev]);
+    showToast("Task added successfully!");
+    setIsProcessing(false);
   }, [isProcessing]);
 
   const toggleComplete = useCallback((id) => {
-    setIsProcessing(true);
     const task = tasks.find(x => x.id === id);
+    if (!task || isProcessing) return;
+
+    setIsProcessing(true);
 
     setTasks(prev =>
       prev.map(t =>
@@ -788,7 +840,7 @@ export default function DoIT() {
       )
     );
 
-    if (task && !task.completed) {
+    if (!task.completed) {
       const pointsEarned = task.priority === 'high' ? 30 : task.priority === 'medium' ? 15 : 10;
       const newStreak = calculateStreak(meta.streak);
       setMeta(p => ({ ...p, points: p.points + pointsEarned, streak: newStreak }));
@@ -796,7 +848,7 @@ export default function DoIT() {
     }
 
     setIsProcessing(false);
-  }, [tasks, meta.streak]);
+  }, [tasks, meta.streak, isProcessing]);
 
   const deleteTask = useCallback((id) => {
     const task = tasks.find(t => t.id === id);
@@ -804,30 +856,32 @@ export default function DoIT() {
   }, [tasks, openModal]);
 
   const confirmDelete = useCallback(() => {
-    if (!modal.data?.id) return;
+    if (!modal?.data?.id || isProcessing) return;
 
     setIsProcessing(true);
     setTasks(prev => prev.filter(task => task.id !== modal.data.id));
     showToast("Task deleted successfully");
     closeModal();
     setIsProcessing(false);
-  }, [modal.data, closeModal]);
+  }, [modal?.data, closeModal, isProcessing]);
 
   const clearCompleted = useCallback(() => {
+    if (isProcessing) return;
     setIsProcessing(true);
     setTasks(prev => prev.filter(t => !t.completed));
     showToast("Completed tasks cleared");
     closeModal();
     setIsProcessing(false);
-  }, [closeModal]);
+  }, [closeModal, isProcessing]);
 
   const clearAll = useCallback(() => {
+    if (isProcessing) return;
     setIsProcessing(true);
     setTasks([]);
     showToast("All tasks cleared");
     closeModal();
     setIsProcessing(false);
-  }, [closeModal]);
+  }, [closeModal, isProcessing]);
 
   const showToast = useCallback((message) => {
     const id = genId();
@@ -838,20 +892,17 @@ export default function DoIT() {
   }, []);
 
   const updateTask = useCallback((updatedTask) => {
+    if (isProcessing) return;
     setIsProcessing(true);
     setTasks(prev => prev.map(task => task.id === updatedTask.id ? updatedTask : task));
     closeModal();
     showToast("Task updated successfully!");
     setIsProcessing(false);
-  }, [closeModal]);
+  }, [closeModal, isProcessing]);
 
   // Export/Import functions
   const exportData = useCallback(() => {
-    const data = {
-      tasks,
-      meta,
-      version: 2
-    };
+    const data = { tasks, meta, version: 2 };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -884,14 +935,14 @@ export default function DoIT() {
       }
     };
     reader.readAsText(file);
-    event.target.value = ''; // Reset input to allow re-uploading same file
+    event.target.value = '';
   }, [showToast]);
 
   // Edit Modal Component
-  const EditModal = () => {
-    const [text, setText] = useState(modal.data?.text || '');
-    const [priority, setPriority] = useState(modal.data?.priority || 'medium');
-    const [dueDate, setDueDate] = useState(modal.data?.dueDate ? new Date(modal.data.dueDate) : null);
+  const EditModal = useCallback(() => {
+    const [text, setText] = useState(modal?.data?.text || '');
+    const [priority, setPriority] = useState(modal?.data?.priority || 'medium');
+    const [dueDate, setDueDate] = useState(modal?.data?.dueDate ? new Date(modal.data.dueDate) : null);
     const [showDatePicker, setShowDatePicker] = useState(false);
 
     const handleSubmit = (e) => {
@@ -1011,11 +1062,11 @@ export default function DoIT() {
         </form>
       </motion.div>
     );
-  };
+  }, [modal, colors, closeModal, updateTask, isProcessing]);
 
   // Delete Confirmation Modal
-  const DeleteTaskModal = () => {
-    const task = modal.data?.task;
+  const DeleteTaskModal = useCallback(() => {
+    const task = modal?.data?.task;
     if (!task) return null;
 
     return (
@@ -1037,7 +1088,7 @@ export default function DoIT() {
             <p className={`${colors.muted} mb-4`}>
               Are you sure you want to delete this task? This action cannot be undone.
             </p>
-            <div className={`p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border ${colors.border} mb-4`}>
+            <div className={`p-3 rounded-lg bg-slate-50 dark:bg-slate-400 border ${colors.border} mb-4`}>
               <p className={`text-sm ${colors.text} font-medium`}>"{task.text}"</p>
               {task.dueDate && (
                 <p className={`text-xs ${colors.muted} mt-1`}>
@@ -1066,9 +1117,9 @@ export default function DoIT() {
         </div>
       </motion.div>
     );
-  };
+  }, [modal, colors, closeModal, confirmDelete, isProcessing]);
 
-  const ClearAllModal = () => (
+  const ClearAllModal = useCallback(() => (
     <motion.div
       initial={{ scale: 0.95, y: 20 }}
       animate={{ scale: 1, y: 0 }}
@@ -1106,9 +1157,9 @@ export default function DoIT() {
         </button>
       </div>
     </motion.div>
-  );
+  ), [colors, tasks.length, closeModal, clearAll]);
 
-  const ClearCompletedModal = () => {
+  const ClearCompletedModal = useCallback(() => {
     const completedCount = tasks.filter(t => t.completed).length;
 
     return (
@@ -1153,12 +1204,12 @@ export default function DoIT() {
         </div>
       </motion.div>
     );
-  };
+  }, [tasks, colors, closeModal, clearCompleted]);
 
   // Footer Modal Component
-  const FooterModal = () => {
+  const FooterModal = useCallback(() => {
     const modalContent = useMemo(() => {
-      switch (modal.type) {
+      switch (modal?.type) {
         case 'privacy':
           return (
             <>
@@ -1190,6 +1241,7 @@ export default function DoIT() {
                   <li>Responsive design for all devices</li>
                   <li>Keyboard-friendly interface</li>
                   <li>Smooth animations and transitions</li>
+                  <li>PWA support for mobile installation</li>
                 </ul>
                 <p className="mt-3">Built with React and modern web technologies.</p>
               </div>
@@ -1235,7 +1287,7 @@ export default function DoIT() {
         default:
           return null;
       }
-    }, [modal.type, colors, tasks, meta]);
+    }, [modal?.type, colors, tasks, meta]);
 
     return (
       <motion.div
@@ -1268,10 +1320,12 @@ export default function DoIT() {
         </div>
       </motion.div>
     );
-  };
+  }, [modal?.type, colors, tasks, meta, closeModal]);
 
-  // Render appropriate modal content
-  const renderModalContent = () => {
+  // Render appropriate modal content - FIXED to prevent double modals
+  const renderModalContent = useCallback(() => {
+    if (!modal) return null;
+
     switch (modal.type) {
       case 'editTask':
         return <EditModal />;
@@ -1288,7 +1342,7 @@ export default function DoIT() {
       default:
         return null;
     }
-  };
+  }, [modal, EditModal, DeleteTaskModal, ClearAllModal, ClearCompletedModal, FooterModal]);
 
   return (
     <div className={`min-h-screen ${colors.background} transition-colors duration-300`}>
@@ -1556,10 +1610,13 @@ export default function DoIT() {
                 <span>v2.0.0</span>
               </button>
             </div>
+            <span className="-ml-10"><p className={`text-xs ${colors.muted}`}>
+              Made with <FiHeart className="inline text-red-500 mx-1" /> by Sahil Maurya
+            </p></span>
 
             <div className="flex items-center gap-4">
               <a
-                href="https://github.com"
+                href="https://github.com/makeitwithsahil/DoIT"
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`${colors.muted} hover:${colors.text} transition-colors`}
@@ -1568,7 +1625,7 @@ export default function DoIT() {
                 <FiGithub size={20} />
               </a>
               <a
-                href="https://twitter.com"
+                href="https://x.com/makeitwithsahil"
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`${colors.muted} hover:${colors.text} transition-colors`}
@@ -1581,11 +1638,16 @@ export default function DoIT() {
         </motion.footer>
       </div>
 
-      {/* Modals */}
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt colors={colors} />
+
+      {/* Modals - FIXED to prevent double rendering */}
       <AnimatePresence>
-        <ModalBackdrop isOpen={modal.isOpen} onClose={closeModal}>
-          {renderModalContent()}
-        </ModalBackdrop>
+        {modal && (
+          <ModalBackdrop onClose={closeModal}>
+            {renderModalContent()}
+          </ModalBackdrop>
+        )}
       </AnimatePresence>
 
       {/* Toast Notifications */}
