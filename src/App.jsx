@@ -131,23 +131,23 @@ const CustomDatePicker = React.memo(function CustomDatePicker({
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  const getDaysInMonth = (date) => {
+  const getDaysInMonth = useCallback((date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  };
+  }, []);
 
-  const getFirstDayOfMonth = (date) => {
+  const getFirstDayOfMonth = useCallback((date) => {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-  };
+  }, []);
 
-  const navigateMonth = (direction) => {
+  const navigateMonth = useCallback((direction) => {
     setCurrentMonth(prev => {
       const newMonth = new Date(prev);
       newMonth.setMonth(prev.getMonth() + direction);
       return newMonth;
     });
-  };
+  }, []);
 
-  const handleDateClick = (day) => {
+  const handleDateClick = useCallback((day) => {
     const newDate = new Date(
       currentMonth.getFullYear(),
       currentMonth.getMonth(),
@@ -156,23 +156,23 @@ const CustomDatePicker = React.memo(function CustomDatePicker({
       selectedTime.minute
     );
     onDateSelect(newDate);
-  };
+  }, [currentMonth, selectedTime, onDateSelect]);
 
-  const handleTimeChange = (type, value) => {
+  const handleTimeChange = useCallback((type, value) => {
     setSelectedTime(prev => ({
       ...prev,
       [type]: parseInt(value)
     }));
-  };
+  }, []);
 
-  const handleQuickSelect = (days) => {
+  const handleQuickSelect = useCallback((days) => {
     const date = new Date();
     date.setDate(date.getDate() + days);
     date.setHours(selectedTime.hour, selectedTime.minute, 0, 0);
     onDateSelect(date);
-  };
+  }, [selectedTime, onDateSelect]);
 
-  const renderCalendar = () => {
+  const calendarDays = useMemo(() => {
     const daysInMonth = getDaysInMonth(currentMonth);
     const firstDay = getFirstDayOfMonth(currentMonth);
     const today = new Date();
@@ -214,21 +214,14 @@ const CustomDatePicker = React.memo(function CustomDatePicker({
     }
 
     return days;
-  };
-
-  const timeSlots = [];
-  for (let hour = 0; hour < 24; hour++) {
-    for (let minute = 0; minute < 60; minute += 15) {
-      timeSlots.push({ hour, minute });
-    }
-  }
+  }, [currentMonth, selectedDate, colors.text, getDaysInMonth, getFirstDayOfMonth, handleDateClick]);
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95, y: 10 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, y: 10 }}
-      transition={{ duration: 0.2 }}
+      transition={{ duration: 0.15 }}
       className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl ${className} overflow-hidden`}
     >
       {/* Quick Select */}
@@ -279,7 +272,7 @@ const CustomDatePicker = React.memo(function CustomDatePicker({
           ))}
         </div>
         <div className="grid grid-cols-7 gap-1">
-          {renderCalendar()}
+          {calendarDays}
         </div>
       </div>
 
@@ -394,11 +387,8 @@ const TaskInput = React.memo(function TaskInput({
 
     if (showDatePicker) {
       document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
   }, [showDatePicker, setShowDatePicker]);
 
   return (
@@ -497,8 +487,8 @@ const TaskItem = React.memo(function TaskItem({
     <motion.li
       layout
       initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0, transition: { duration: 0.2 } }}
-      exit={{ opacity: 0, y: 6, transition: { duration: 0.15 } }}
+      animate={{ opacity: 1, y: 0, transition: { duration: 0.15 } }}
+      exit={{ opacity: 0, y: 6, transition: { duration: 0.1 } }}
       className={`p-4 rounded-xl flex items-start gap-3 border transition-all hover:shadow-md ${task.completed
         ? 'bg-emerald-50/60 dark:bg-emerald-900/30 border-emerald-100/60 dark:border-emerald-800/40'
         : `${colors.card} ${colors.border}`
@@ -568,72 +558,124 @@ const TaskItem = React.memo(function TaskItem({
   );
 });
 
+// Modal Components
+const ModalBackdrop = ({ children, onClose, isOpen }) => {
+  const backdropRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (backdropRef.current === event.target) {
+        onClose();
+      }
+    }
+
+    function handleEsc(event) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEsc);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleEsc);
+      };
+    }
+  }, [onClose, isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <motion.div
+      ref={backdropRef}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    >
+      {children}
+    </motion.div>
+  );
+};
+
 // Main DoIT Component
 export default function DoIT() {
   const inputRef = useRef(null);
 
+  // Consolidated modal state - single source of truth
+  const [modal, setModal] = useState({
+    type: null,
+    data: null,
+    isOpen: false
+  });
+
   // State
   const [tasks, setTasks] = useState(() => {
-    const savedTasks = localStorage.getItem('doit-tasks');
-    return savedTasks ? JSON.parse(savedTasks) : [];
+    try {
+      const savedTasks = localStorage.getItem('doit-tasks');
+      return savedTasks ? JSON.parse(savedTasks) : [];
+    } catch {
+      return [];
+    }
   });
-  const [clearAllModalOpen, setClearAllModalOpen] = useState(false);
-  const [clearCompletedModalOpen, setClearCompletedModalOpen] = useState(false);
+
   const [filter, setFilter] = useState(() => {
-    const savedFilter = sessionStorage.getItem('doit-filter');
-    return savedFilter || 'active';
+    try {
+      const savedFilter = sessionStorage.getItem('doit-filter');
+      return savedFilter || 'active';
+    } catch {
+      return 'active';
+    }
   });
+
   const [theme, setTheme] = useState(() => {
-    const savedTheme = localStorage.getItem('doit-theme');
-    return savedTheme || 'light';
+    try {
+      const savedTheme = localStorage.getItem('doit-theme');
+      return savedTheme || 'light';
+    } catch {
+      return 'light';
+    }
   });
-  const [quote, setQuote] = useState(getRandomItem(MOTIVATIONAL_QUOTES));
+
+  const [quote, setQuote] = useState(() => getRandomItem(MOTIVATIONAL_QUOTES));
   const [toasts, setToasts] = useState([]);
   const [meta, setMeta] = useState(() => {
-    const savedMeta = localStorage.getItem('doit-meta');
-    return savedMeta ? JSON.parse(savedMeta) : {
-      points: 0,
-      streak: { current: 0, lastDate: null },
-      theme: 'light',
-      version: 2
-    };
+    try {
+      const savedMeta = localStorage.getItem('doit-meta');
+      return savedMeta ? JSON.parse(savedMeta) : {
+        points: 0,
+        streak: { current: 0, lastDate: null },
+        theme: 'light',
+        version: 2
+      };
+    } catch {
+      return {
+        points: 0,
+        streak: { current: 0, lastDate: null },
+        theme: 'light',
+        version: 2
+      };
+    }
   });
-  const [editingTask, setEditingTask] = useState(null);
+
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [taskToDelete, setTaskToDelete] = useState(null);
-  const [openModal, setOpenModal] = useState(null);
 
   const colors = useMemo(() => COLORS[theme], [theme]);
 
-  // Save to localStorage whenever tasks change
-  useEffect(() => {
-    localStorage.setItem('doit-tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  // Save filter to sessionStorage
-  useEffect(() => {
-    sessionStorage.setItem('doit-filter', filter);
-  }, [filter]);
-
-  // Save theme to localStorage and update meta
-  useEffect(() => {
-    localStorage.setItem('doit-theme', theme);
-    setMeta(prev => ({ ...prev, theme }));
-  }, [theme]);
-
-  // Save meta to localStorage
-  useEffect(() => {
-    localStorage.setItem('doit-meta', JSON.stringify(meta));
-  }, [meta]);
-
+  // Optimized filtered tasks with better memoization
   const filteredTasks = useMemo(() => {
     return tasks
       .filter(task => {
-        if (filter === 'active') return !task.completed;
-        if (filter === 'completed') return task.completed;
-        return true;
+        switch (filter) {
+          case 'active': return !task.completed;
+          case 'completed': return task.completed;
+          default: return true;
+        }
       })
       .sort((a, b) => {
         if (a.dueDate && b.dueDate) return a.dueDate - b.dueDate;
@@ -643,14 +685,61 @@ export default function DoIT() {
       });
   }, [tasks, filter]);
 
-  const stats = useMemo(() => ({
-    total: tasks.length,
-    completed: tasks.filter(t => t.completed).length,
-    active: tasks.filter(t => !t.completed).length,
-    completionRate: tasks.length ? Math.round(((tasks.filter(t => t.completed).length / tasks.length) * 100)) : 0
-  }), [tasks]);
+  // Optimized stats calculation
+  const stats = useMemo(() => {
+    const completed = tasks.filter(t => t.completed).length;
+    const total = tasks.length;
+    return {
+      total,
+      completed,
+      active: total - completed,
+      completionRate: total ? Math.round((completed / total) * 100) : 0
+    };
+  }, [tasks]);
 
-  // Effects
+  // Modal handlers
+  const openModal = useCallback((type, data = null) => {
+    setModal({ type, data, isOpen: true });
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModal({ type: null, data: null, isOpen: false });
+  }, []);
+
+  // Save to localStorage with error handling
+  useEffect(() => {
+    try {
+      localStorage.setItem('doit-tasks', JSON.stringify(tasks));
+    } catch (error) {
+      console.warn('Failed to save tasks to localStorage:', error);
+    }
+  }, [tasks]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('doit-filter', filter);
+    } catch (error) {
+      console.warn('Failed to save filter to sessionStorage:', error);
+    }
+  }, [filter]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('doit-theme', theme);
+      setMeta(prev => ({ ...prev, theme }));
+    } catch (error) {
+      console.warn('Failed to save theme to localStorage:', error);
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('doit-meta', JSON.stringify(meta));
+    } catch (error) {
+      console.warn('Failed to save meta to localStorage:', error);
+    }
+  }, [meta]);
+
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
@@ -666,23 +755,27 @@ export default function DoIT() {
     inputRef.current?.focus();
   }, []);
 
-  // Handlers
+  // Handlers with better performance
   const addTask = useCallback((inputValue, selectedDateValue) => {
     if (!inputValue.trim() || isProcessing) return;
+
     setIsProcessing(true);
 
-    const newTask = {
-      id: genId(),
-      text: inputValue.trim().slice(0, 500),
-      completed: false,
-      createdAt: Date.now(),
-      priority: 'medium',
-      dueDate: selectedDateValue ? selectedDateValue.getTime() : null
-    };
+    // Use setTimeout to prevent blocking
+    setTimeout(() => {
+      const newTask = {
+        id: genId(),
+        text: inputValue.trim().slice(0, 500),
+        completed: false,
+        createdAt: Date.now(),
+        priority: 'medium',
+        dueDate: selectedDateValue ? selectedDateValue.getTime() : null
+      };
 
-    setTasks(prev => [newTask, ...prev]);
-    showToast("Task added successfully!");
-    setIsProcessing(false);
+      setTasks(prev => [newTask, ...prev]);
+      showToast("Task added successfully!");
+      setIsProcessing(false);
+    }, 0);
   }, [isProcessing]);
 
   const toggleComplete = useCallback((id) => {
@@ -706,34 +799,35 @@ export default function DoIT() {
   }, [tasks, meta.streak]);
 
   const deleteTask = useCallback((id) => {
-    setTaskToDelete(id);
-  }, []);
+    const task = tasks.find(t => t.id === id);
+    openModal('deleteTask', { id, task });
+  }, [tasks, openModal]);
 
   const confirmDelete = useCallback(() => {
-    if (!taskToDelete) return;
-    setIsProcessing(true);
-    setTasks(prev => prev.filter(task => task.id !== taskToDelete));
-    showToast("Task deleted successfully");
-    setTaskToDelete(null);
-    setIsProcessing(false);
-  }, [taskToDelete]);
+    if (!modal.data?.id) return;
 
-  const cancelDelete = useCallback(() => {
-    setTaskToDelete(null);
-  }, []);
+    setIsProcessing(true);
+    setTasks(prev => prev.filter(task => task.id !== modal.data.id));
+    showToast("Task deleted successfully");
+    closeModal();
+    setIsProcessing(false);
+  }, [modal.data, closeModal]);
 
   const clearCompleted = useCallback(() => {
     setIsProcessing(true);
     setTasks(prev => prev.filter(t => !t.completed));
     showToast("Completed tasks cleared");
+    closeModal();
     setIsProcessing(false);
-  }, []);
+  }, [closeModal]);
+
   const clearAll = useCallback(() => {
     setIsProcessing(true);
     setTasks([]);
     showToast("All tasks cleared");
+    closeModal();
     setIsProcessing(false);
-  }, []);
+  }, [closeModal]);
 
   const showToast = useCallback((message) => {
     const id = genId();
@@ -746,10 +840,10 @@ export default function DoIT() {
   const updateTask = useCallback((updatedTask) => {
     setIsProcessing(true);
     setTasks(prev => prev.map(task => task.id === updatedTask.id ? updatedTask : task));
-    setEditingTask(null);
+    closeModal();
     showToast("Task updated successfully!");
     setIsProcessing(false);
-  }, []);
+  }, [closeModal]);
 
   // Export/Import functions
   const exportData = useCallback(() => {
@@ -768,7 +862,7 @@ export default function DoIT() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showToast("Data exported successfully!");
-  }, [tasks, meta]);
+  }, [tasks, meta, showToast]);
 
   const importData = useCallback((event) => {
     const file = event.target.files[0];
@@ -791,469 +885,409 @@ export default function DoIT() {
     };
     reader.readAsText(file);
     event.target.value = ''; // Reset input to allow re-uploading same file
-  }, []);
+  }, [showToast]);
 
   // Edit Modal Component
   const EditModal = () => {
-    const [text, setText] = useState(editingTask?.text || '');
-    const [priority, setPriority] = useState(editingTask?.priority || 'medium');
-    const [dueDate, setDueDate] = useState(editingTask?.dueDate ? new Date(editingTask.dueDate) : null);
+    const [text, setText] = useState(modal.data?.text || '');
+    const [priority, setPriority] = useState(modal.data?.priority || 'medium');
+    const [dueDate, setDueDate] = useState(modal.data?.dueDate ? new Date(modal.data.dueDate) : null);
     const [showDatePicker, setShowDatePicker] = useState(false);
-
-    const modalRef = useRef(null);
-    const datePickerRef = useRef(null);
 
     const handleSubmit = (e) => {
       e.preventDefault();
       if (!text.trim() || isProcessing) return;
       updateTask({
-        ...editingTask,
+        ...modal.data,
         text: text.trim().slice(0, 500),
         priority,
         dueDate: dueDate ? dueDate.getTime() : null
       });
     };
 
-    useEffect(() => {
-      function handleClickOutside(event) {
-        if (modalRef.current && !modalRef.current.contains(event.target)) {
-          if (!datePickerRef.current || !datePickerRef.current.contains(event.target)) {
-            setEditingTask(null);
-          }
-        }
-      }
-      function handleEsc(e) {
-        if (e.key === 'Escape') {
-          setShowDatePicker(false);
-          setEditingTask(null);
-        }
-      }
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEsc);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('keydown', handleEsc);
-      };
-    }, []);
-
     return (
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        transition={{ duration: 0.15 }}
+        className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto`}
+        role="dialog"
+        aria-modal="true"
       >
-        <motion.div
-          ref={modalRef}
-          initial={{ scale: 0.95, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 20 }}
-          className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto`}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className={`p-4 border-b ${colors.border} flex justify-between items-center`}>
-            <h3 className={`text-lg font-semibold ${colors.text}`}>Edit Task</h3>
+        <div className={`p-4 border-b ${colors.border} flex justify-between items-center`}>
+          <h3 className={`text-lg font-semibold ${colors.text}`}>Edit Task</h3>
+          <button
+            onClick={closeModal}
+            className={`p-2 rounded-lg ${colors.muted} hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors`}
+          >
+            <FiX size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          <div>
+            <label className={`block text-sm font-medium ${colors.text} mb-2`}>Task Description</label>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              className={`w-full px-3 py-2 rounded-lg border ${colors.border} ${colors.input} focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none`}
+              rows={3}
+              maxLength={500}
+              autoFocus
+            />
+            <div className={`text-xs ${colors.muted} mt-1`}>
+              {text.length}/500 characters
+            </div>
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium ${colors.text} mb-2`}>Priority</label>
+            <div className="flex gap-2 flex-wrap">
+              {PRIORITY_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setPriority(option.value)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${option.color} ${priority === option.value
+                    ? 'ring-2 ring-indigo-500 scale-105'
+                    : 'opacity-70 hover:opacity-100'
+                    }`}
+                >
+                  <FiStar size={12} className="inline mr-1" />
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative">
+            <label className={`block text-sm font-medium ${colors.text} mb-2`}>Due Date</label>
             <button
-              onClick={() => setEditingTask(null)}
-              className={`p-2 rounded-lg ${colors.muted} hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors`}
+              type="button"
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              className={`w-full px-3 py-3 rounded-lg border ${colors.border} ${colors.input} text-left flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors`}
             >
-              <FiX size={20} />
+              <span className={dueDate ? colors.text : colors.muted}>
+                {dueDate ? formatDateTime(dueDate.getTime()) : 'No due date set'}
+              </span>
+              <FiCalendar className={colors.muted} />
             </button>
+
+            <AnimatePresence>
+              {showDatePicker && (
+                <div className="absolute top-full left-0 right-0 mt-2 z-10">
+                  <CustomDatePicker
+                    selectedDate={dueDate}
+                    onDateSelect={(date) => {
+                      setDueDate(date);
+                      setShowDatePicker(false);
+                    }}
+                    onClose={() => setShowDatePicker(false)}
+                    colors={colors}
+                  />
+                </div>
+              )}
+            </AnimatePresence>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-4 space-y-4">
-            <div>
-              <label className={`block text-sm font-medium ${colors.text} mb-2`}>Task Description</label>
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg border ${colors.border} ${colors.input} focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none`}
-                rows={3}
-                maxLength={500}
-                autoFocus
-              />
-              <div className={`text-xs ${colors.muted} mt-1`}>
-                {text.length}/500 characters
-              </div>
-            </div>
-
-            <div>
-              <label className={`block text-sm font-medium ${colors.text} mb-2`}>Priority</label>
-              <div className="flex gap-2 flex-wrap">
-                {PRIORITY_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setPriority(option.value)}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${option.color} ${priority === option.value
-                      ? 'ring-2 ring-indigo-500 scale-105'
-                      : 'opacity-70 hover:opacity-100'
-                      }`}
-                  >
-                    <FiStar size={12} className="inline mr-1" />
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="relative">
-              <label className={`block text-sm font-medium ${colors.text} mb-2`}>Due Date</label>
-              <button
-                type="button"
-                onClick={() => setShowDatePicker(!showDatePicker)}
-                className={`w-full px-3 py-3 rounded-lg border ${colors.border} ${colors.input} text-left flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors`}
-              >
-                <span className={dueDate ? colors.text : colors.muted}>
-                  {dueDate ? formatDateTime(dueDate.getTime()) : 'No due date set'}
-                </span>
-                <FiCalendar className={colors.muted} />
-              </button>
-
-              <AnimatePresence>
-                {showDatePicker && (
-                  <div className="absolute top-full left-0 right-0 mt-2 z-10" ref={datePickerRef}>
-                    <CustomDatePicker
-                      selectedDate={dueDate}
-                      onDateSelect={(date) => {
-                        setDueDate(date);
-                        setShowDatePicker(false);
-                      }}
-                      onClose={() => setShowDatePicker(false)}
-                      colors={colors}
-                    />
-                  </div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setEditingTask(null)}
-                className={`px-4 py-2 rounded-lg ${colors.secondary} ${colors.text} hover:opacity-80 transition-opacity`}
-                disabled={isProcessing}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className={`px-4 py-2 rounded-lg ${colors.primary} text-white hover:opacity-90 transition-opacity disabled:opacity-50`}
-                disabled={isProcessing || !text.trim()}
-              >
-                {isProcessing ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </form>
-        </motion.div>
-      </motion.div>
-    );
-  };
-
-  // Delete Confirmation Modal
-  const DeleteConfirmationModal = () => {
-    const task = tasks.find(t => t.id === taskToDelete);
-    if (!task) return null;
-
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      >
-        <motion.div
-          initial={{ scale: 0.95, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 20 }}
-          className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl w-full max-w-md p-6`}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
-              <FiTrash2 className="text-red-600 dark:text-red-400" size={20} />
-            </div>
-            <div className="flex-1">
-              <h3 className={`text-lg font-semibold ${colors.text} mb-2`}>Delete Task</h3>
-              <p className={`${colors.muted} mb-4`}>
-                Are you sure you want to delete this task? This action cannot be undone.
-              </p>
-              <div className={`p-3 rounded-lg bg-slate-300 dark:bg-slate-400 border ${colors.border} mb-4`}>
-                <p className={`text-sm ${colors.text} font-medium`}>"{task.text}"</p>
-                {task.dueDate && (
-                  <p className={`text-xs ${colors.muted} mt-1`}>
-                    Due: {formatDateTime(task.dueDate)}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3">
+          <div className="flex justify-end gap-3 pt-4">
             <button
-              onClick={cancelDelete}
+              type="button"
+              onClick={closeModal}
               className={`px-4 py-2 rounded-lg ${colors.secondary} ${colors.text} hover:opacity-80 transition-opacity`}
               disabled={isProcessing}
             >
               Cancel
             </button>
             <button
-              onClick={confirmDelete}
-              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
-              disabled={isProcessing}
+              type="submit"
+              className={`px-4 py-2 rounded-lg ${colors.primary} text-white hover:opacity-90 transition-opacity disabled:opacity-50`}
+              disabled={isProcessing || !text.trim()}
             >
-              {isProcessing ? 'Deleting...' : 'Delete Task'}
+              {isProcessing ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
-        </motion.div>
+        </form>
       </motion.div>
     );
   };
 
-  const ClearAllConfirmationModal = () => (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-    >
+  // Delete Confirmation Modal
+  const DeleteTaskModal = () => {
+    const task = modal.data?.task;
+    if (!task) return null;
+
+    return (
       <motion.div
         initial={{ scale: 0.95, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.95, y: 20 }}
+        transition={{ duration: 0.15 }}
         className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl w-full max-w-md p-6`}
+        role="dialog"
+        aria-modal="true"
       >
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
             <FiTrash2 className="text-red-600 dark:text-red-400" size={20} />
           </div>
           <div className="flex-1">
-            <h3 className={`text-lg font-semibold ${colors.text} mb-2`}>Clear All Tasks</h3>
+            <h3 className={`text-lg font-semibold ${colors.text} mb-2`}>Delete Task</h3>
             <p className={`${colors.muted} mb-4`}>
-              Are you sure you want to delete all tasks? This action cannot be undone.
+              Are you sure you want to delete this task? This action cannot be undone.
+            </p>
+            <div className={`p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border ${colors.border} mb-4`}>
+              <p className={`text-sm ${colors.text} font-medium`}>"{task.text}"</p>
+              {task.dueDate && (
+                <p className={`text-xs ${colors.muted} mt-1`}>
+                  Due: {formatDateTime(task.dueDate)}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={closeModal}
+            className={`px-4 py-2 rounded-lg ${colors.secondary} ${colors.text} hover:opacity-80 transition-opacity`}
+            disabled={isProcessing}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={confirmDelete}
+            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
+            disabled={isProcessing}
+          >
+            {isProcessing ? 'Deleting...' : 'Delete Task'}
+          </button>
+        </div>
+      </motion.div>
+    );
+  };
+
+  const ClearAllModal = () => (
+    <motion.div
+      initial={{ scale: 0.95, y: 20 }}
+      animate={{ scale: 1, y: 0 }}
+      exit={{ scale: 0.95, y: 20 }}
+      transition={{ duration: 0.15 }}
+      className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl w-full max-w-md p-6`}
+    >
+      <div className="flex items-start gap-4">
+        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+          <FiTrash2 className="text-red-600 dark:text-red-400" size={20} />
+        </div>
+        <div className="flex-1">
+          <h3 className={`text-lg font-semibold ${colors.text} mb-2`}>Clear All Tasks</h3>
+          <p className={`${colors.muted} mb-4`}>
+            Are you sure you want to delete all tasks? This action cannot be undone.
+          </p>
+          <p className={`text-sm ${colors.muted} italic`}>
+            You'll lose all {tasks.length} tasks currently in your list.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3 mt-6">
+        <button
+          onClick={closeModal}
+          className={`px-4 py-2 rounded-lg ${colors.secondary} ${colors.text} hover:opacity-80 transition-opacity`}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={clearAll}
+          className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors"
+        >
+          Clear All
+        </button>
+      </div>
+    </motion.div>
+  );
+
+  const ClearCompletedModal = () => {
+    const completedCount = tasks.filter(t => t.completed).length;
+
+    return (
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        transition={{ duration: 0.15 }}
+        className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl w-full max-w-md p-6`}
+      >
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
+            <FiRotateCcw className="text-orange-600 dark:text-orange-400" size={20} />
+          </div>
+          <div className="flex-1">
+            <h3 className={`text-lg font-semibold ${colors.text} mb-2`}>Clear Completed Tasks</h3>
+            <p className={`${colors.muted} mb-4`}>
+              Are you sure you want to delete all completed tasks? This action cannot be undone.
             </p>
             <p className={`text-sm ${colors.muted} italic`}>
-              You'll lose all {tasks.length} tasks currently in your list.
+              {completedCount > 0
+                ? `You'll remove ${completedCount} completed task${completedCount === 1 ? '' : 's'}`
+                : 'No completed tasks to remove'}
             </p>
           </div>
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
           <button
-            onClick={() => setClearAllModalOpen(false)}
+            onClick={closeModal}
             className={`px-4 py-2 rounded-lg ${colors.secondary} ${colors.text} hover:opacity-80 transition-opacity`}
           >
             Cancel
           </button>
           <button
-            onClick={() => {
-              clearAll();
-              setClearAllModalOpen(false);
-            }}
-            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors"
+            onClick={clearCompleted}
+            className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition-colors"
+            disabled={completedCount === 0}
           >
-            Clear All
+            Clear Completed
           </button>
         </div>
-      </motion.div>
-    </motion.div>
-  );
-
-  const ClearCompletedConfirmationModal = () => {
-    const completedCount = tasks.filter(t => t.completed).length;
-
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      >
-        <motion.div
-          initial={{ scale: 0.95, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 20 }}
-          className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl w-full max-w-md p-6`}
-        >
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
-              <FiRotateCcw className="text-orange-600 dark:text-orange-400" size={20} />
-            </div>
-            <div className="flex-1">
-              <h3 className={`text-lg font-semibold ${colors.text} mb-2`}>Clear Completed Tasks</h3>
-              <p className={`${colors.muted} mb-4`}>
-                Are you sure you want to delete all completed tasks? This action cannot be undone.
-              </p>
-              <p className={`text-sm ${colors.muted} italic`}>
-                {completedCount > 0
-                  ? `You'll remove ${completedCount} completed task${completedCount === 1 ? '' : 's'}`
-                  : 'No completed tasks to remove'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={() => setClearCompletedModalOpen(false)}
-              className={`px-4 py-2 rounded-lg ${colors.secondary} ${colors.text} hover:opacity-80 transition-opacity`}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                clearCompleted();
-                setClearCompletedModalOpen(false);
-              }}
-              className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition-colors"
-              disabled={completedCount === 0}
-            >
-              Clear Completed
-            </button>
-          </div>
-        </motion.div>
       </motion.div>
     );
   };
 
   // Footer Modal Component
-  const FooterModal = ({ openModal, closeModal }) => {
-    const modalRef = useRef(null);
-
-    useEffect(() => {
-      function handleClickOutside(event) {
-        if (modalRef.current && !modalRef.current.contains(event.target)) {
-          closeModal();
-        }
-      }
-      function handleEsc(event) {
-        if (event.key === 'Escape') closeModal();
-      }
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEsc);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('keydown', handleEsc);
-      };
-    }, [closeModal]);
-
+  const FooterModal = () => {
     const modalContent = useMemo(() => {
-      if (openModal === "privacy") {
-        return (
-          <>
-            <h3 className={`text-lg font-semibold ${colors.text} mb-4`}>Privacy Policy</h3>
-            <div className={`text-sm ${colors.muted} space-y-3`}>
-              <p><strong>Your privacy matters.</strong> DoIT is designed with privacy as a core principle:</p>
-              <ul className="list-disc pl-5 space-y-2">
-                <li>All data is stored locally in your browser</li>
-                <li>No tracking or analytics are used</li>
-                <li>No data is sent to any servers</li>
-                <li>Your tasks never leave your device</li>
-              </ul>
-              <p>You can export your data anytime. To remove all data, clear this app's storage.</p>
-            </div>
-          </>
-        );
-      } else if (openModal === "about") {
-        return (
-          <>
-            <h3 className={`text-lg font-semibold ${colors.text} mb-4`}>About DoIT</h3>
-            <div className={`text-sm ${colors.muted} space-y-3`}>
-              <p><strong>DoIT</strong> is a minimalist, privacy-focused task manager designed to keep you productive without distractions.</p>
-              <p className="font-medium mt-3">Key Features:</p>
-              <ul className="list-disc pl-5 space-y-2">
-                <li>Local storage (your data stays private)</li>
-                <li>Dark/light mode with system preference</li>
-                <li>Task priorities and due dates</li>
-                <li>Progress tracking and streaks</li>
-                <li>Responsive design for all devices</li>
-                <li>Keyboard-friendly interface</li>
-                <li>Smooth animations and transitions</li>
-              </ul>
-              <p className="mt-3">Built with React and modern web technologies.</p>
-            </div>
-          </>
-        );
-      } else if (openModal === "version") {
-        return (
-          <>
-            <div className="flex items-center gap-3 mb-4">
-              <div className={`w-12 h-12 rounded-xl ${colors.primary} flex items-center justify-center`}>
-                <FiCheckCircle className="text-white text-xl" />
+      switch (modal.type) {
+        case 'privacy':
+          return (
+            <>
+              <h3 className={`text-lg font-semibold ${colors.text} mb-4`}>Privacy Policy</h3>
+              <div className={`text-sm ${colors.muted} space-y-3`}>
+                <p><strong>Your privacy matters.</strong> DoIT is designed with privacy as a core principle:</p>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li>All data is stored locally in your browser</li>
+                  <li>No tracking or analytics are used</li>
+                  <li>No data is sent to any servers</li>
+                  <li>Your tasks never leave your device</li>
+                </ul>
+                <p>You can export your data anytime. To remove all data, clear this app's storage.</p>
               </div>
-              <div>
-                <h3 className={`text-lg font-semibold ${colors.text}`}>DoIT Task Manager</h3>
-                <p className={`text-sm ${colors.muted}`}>Version 2.0.0</p>
+            </>
+          );
+        case 'about':
+          return (
+            <>
+              <h3 className={`text-lg font-semibold ${colors.text} mb-4`}>About DoIT</h3>
+              <div className={`text-sm ${colors.muted} space-y-3`}>
+                <p><strong>DoIT</strong> is a minimalist, privacy-focused task manager designed to keep you productive without distractions.</p>
+                <p className="font-medium mt-3">Key Features:</p>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li>Local storage (your data stays private)</li>
+                  <li>Dark/light mode with system preference</li>
+                  <li>Task priorities and due dates</li>
+                  <li>Progress tracking and streaks</li>
+                  <li>Responsive design for all devices</li>
+                  <li>Keyboard-friendly interface</li>
+                  <li>Smooth animations and transitions</li>
+                </ul>
+                <p className="mt-3">Built with React and modern web technologies.</p>
               </div>
-            </div>
-            <div className={`text-sm ${colors.text} space-y-2`}>
-              <div className="flex justify-between">
-                <span>Build Date:</span>
-                <span>{new Date().toLocaleDateString()}</span>
+            </>
+          );
+        case 'version':
+          return (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`w-12 h-12 rounded-xl ${colors.primary} flex items-center justify-center`}>
+                  <FiCheckCircle className="text-white text-xl" />
+                </div>
+                <div>
+                  <h3 className={`text-lg font-semibold ${colors.text}`}>DoIT Task Manager</h3>
+                  <p className={`text-sm ${colors.muted}`}>Version 2.0.0</p>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span>Total Tasks:</span>
-                <span>{tasks.length}</span>
+              <div className={`text-sm ${colors.text} space-y-2`}>
+                <div className="flex justify-between">
+                  <span>Build Date:</span>
+                  <span>{new Date().toLocaleDateString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total Tasks:</span>
+                  <span>{tasks.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Points Earned:</span>
+                  <span>{meta.points || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Current Streak:</span>
+                  <span>{meta.streak?.current || 0} days</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span>Points Earned:</span>
-                <span>{meta.points || 0}</span>
+              <div className={`mt-4 pt-4 border-t ${colors.border} text-center`}>
+                <p className={`text-xs ${colors.muted}`}>
+                  Made with <FiHeart className="inline text-red-500 mx-1" /> by Sahil Maurya
+                </p>
               </div>
-              <div className="flex justify-between">
-                <span>Current Streak:</span>
-                <span>{meta.streak?.current || 0} days</span>
-              </div>
-            </div>
-            <div className={`mt-4 pt-4 border-t ${colors.border} text-center`}>
-              <p className={`text-xs ${colors.muted}`}>
-                Made with <FiHeart className="inline text-red-500 mx-1" /> by Sahil Maurya
-              </p>
-            </div>
-          </>
-        );
+            </>
+          );
+        default:
+          return null;
       }
-      return null;
-    }, [openModal, colors, tasks, meta]);
+    }, [modal.type, colors, tasks, meta]);
 
     return (
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
+        transition={{ duration: 0.15 }}
+        className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto`}
+        role="dialog"
+        aria-modal="true"
       >
-        <motion.div
-          ref={modalRef}
-          initial={{ scale: 0.95, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 20 }}
-          className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto`}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="p-6">
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={closeModal}
-                className={`p-2 rounded-lg ${colors.muted} hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors`}
-              >
-                <FiX size={20} />
-              </button>
-            </div>
-            {modalContent}
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={closeModal}
-                className={`px-4 py-2 rounded-lg ${colors.primary} text-white hover:opacity-90 transition-opacity`}
-              >
-                Got it
-              </button>
-            </div>
+        <div className="p-6">
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={closeModal}
+              className={`p-2 rounded-lg ${colors.muted} hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors`}
+            >
+              <FiX size={20} />
+            </button>
           </div>
-        </motion.div>
+          {modalContent}
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={closeModal}
+              className={`px-4 py-2 rounded-lg ${colors.primary} text-white hover:opacity-90 transition-opacity`}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
       </motion.div>
     );
+  };
+
+  // Render appropriate modal content
+  const renderModalContent = () => {
+    switch (modal.type) {
+      case 'editTask':
+        return <EditModal />;
+      case 'deleteTask':
+        return <DeleteTaskModal />;
+      case 'clearAll':
+        return <ClearAllModal />;
+      case 'clearCompleted':
+        return <ClearCompletedModal />;
+      case 'privacy':
+      case 'about':
+      case 'version':
+        return <FooterModal />;
+      default:
+        return null;
+    }
   };
 
   return (
@@ -1284,7 +1318,7 @@ export default function DoIT() {
             </button>
 
             <button
-              onClick={() => setClearCompletedModalOpen(true)}
+              onClick={() => openModal('clearCompleted')}
               className={`px-4 py-3 rounded-xl ${colors.card} border ${colors.border} text-sm font-medium hover:scale-105 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${colors.text}`}
               disabled={isProcessing || !tasks.some(t => t.completed)}
             >
@@ -1294,7 +1328,7 @@ export default function DoIT() {
               </div>
             </button>
             <button
-              onClick={() => setClearAllModalOpen(true)}
+              onClick={() => openModal('clearAll')}
               className={`px-4 py-3 rounded-xl ${colors.card} border ${colors.border} text-sm font-medium hover:scale-105 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${colors.text}`}
               disabled={isProcessing || tasks.length === 0}
             >
@@ -1391,7 +1425,7 @@ export default function DoIT() {
                       task={task}
                       onToggleComplete={toggleComplete}
                       onDelete={deleteTask}
-                      onEdit={setEditingTask}
+                      onEdit={(task) => openModal('editTask', task)}
                       isProcessing={isProcessing}
                       colors={colors}
                     />
@@ -1424,167 +1458,150 @@ export default function DoIT() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0, transition: { delay: 0.6 } }}
-          className={`${colors.card} p-6 rounded-xl border ${colors.border} shadow-sm`}
+          className={`${colors.card} rounded-xl border ${colors.border} p-6 shadow-sm mb-8`}
         >
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600">
-                <FiZap className="text-white" size={20} />
-              </div>
-              <div>
-                <h3 className={`font-semibold ${colors.text}`}>Your Progress</h3>
-                <p className={`text-sm ${colors.muted}`}>Keep up the great work!</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={exportData}
-                className={`p-2 rounded-lg ${colors.secondary} ${colors.text} hover:scale-105 transition-transform`}
-                title="Export Data"
-              >
-                <FiDownload size={18} />
-              </button>
-              <label className={`p-2 rounded-lg ${colors.secondary} ${colors.text} hover:scale-105 transition-transform cursor-pointer`} title="Import Data">
-                <FiUpload size={18} />
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={importData}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className={`p-4 rounded-lg bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800`}>
-              <div className="flex items-center gap-2 mb-1">
-                <FiStar className="text-amber-600 dark:text-amber-400" size={16} />
-                <span className={`text-sm font-medium ${colors.text}`}>Points</span>
-              </div>
-              <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                {meta.points || 0}
-              </div>
-            </div>
-
-            <div className={`p-4 rounded-lg bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800`}>
-              <div className="flex items-center gap-2 mb-1">
-                <FiZap className="text-emerald-600 dark:text-emerald-400" size={16} />
-                <span className={`text-sm font-medium ${colors.text}`}>Streak</span>
-              </div>
-              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                {meta.streak?.current || 0} days
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Toast Notifications */}
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 space-y-2">
-          <AnimatePresence>
-            {toasts.map((toast) => (
-              <motion.div
-                key={toast.id}
-                initial={{ opacity: 0, y: 50, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className={`px-6 py-3 rounded-xl shadow-lg ${colors.card} border ${colors.border} text-sm font-medium ${colors.text} backdrop-blur-sm`}
-              >
-                {toast.message}
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-
-        {/* Footer */}
-        <footer className={`bottom-0 left-0 mt-6 right-0 ${colors.footer} border-t ${colors.border} py-4 px-6 backdrop-blur-md z-30`}>
-          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+            <h3 className={`text-lg font-semibold ${colors.text}`}>Your Progress</h3>
             <div className="flex items-center gap-4">
-              <p className={`text-sm ${colors.muted}`}>
-                &copy; {new Date().getFullYear()} DoIT
-              </p>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setOpenModal("privacy")}
-                  className={`text-sm flex items-center gap-1 ${colors.muted} hover:${colors.text} transition-colors`}
-                >
-                  <FiShield size={14} /> Privacy
-                </button>
-                <button
-                  onClick={() => setOpenModal("about")}
-                  className={`text-sm flex items-center gap-1 ${colors.muted} hover:${colors.text} transition-colors`}
-                >
-                  <FiInfo size={14} /> About
-                </button>
+              <div className="flex items-center gap-2">
+                <FiZap className="text-amber-500" size={16} />
+                <span className={`text-sm font-medium ${colors.text}`}>
+                  {meta.points || 0} points
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <FiStar className="text-indigo-600" size={16} />
+                <span className={`text-sm font-medium ${colors.text}`}>
+                  {meta.streak?.current || 0} day streak
+                </span>
               </div>
             </div>
-
-            <div className={`text-sm ${colors.muted} flex items-center gap-4`}>
-              <span className="flex items-center gap-1">
-                <FiStar size={14} className="text-amber-500" />
-                {meta.points} pts
-              </span>
-              <span className="flex items-center gap-1">
-                <FiZap size={14} className="text-emerald-500" />
-                {meta.streak.current} streak
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <a
-                href="https://github.com/makeitwithsahil/DoIT"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`p-2 rounded-lg ${colors.secondary} hover:scale-105 transition-transform`}
-                aria-label="GitHub"
-              >
-                <FiGithub size={16} className={colors.muted} />
-              </a>
-              <a
-                href="https://x.com/makeitwithsahil"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`p-2 rounded-lg ${colors.secondary} hover:scale-105 transition-transform`}
-                aria-label="Twitter"
-              >
-                <FiTwitter size={16} className={colors.muted} />
-              </a>
-              <button
-                onClick={() => setOpenModal("version")}
-                className={`text-xs px-3 py-1.5 rounded-full ${colors.secondary} ${colors.muted} hover:scale-105 transition-transform`}
-              >
-                v2.0.0
-              </button>
-            </div>
-
           </div>
-          <div className={`mt-4 pt-4 border-t ${colors.border} text-center`}>
-            <p className={`text-sm ${colors.muted}`}>
-              Made with <FiHeart className="inline text-red-500 mx-1" /> by Sahil Maurya
-            </p>
-          </div>
-        </footer>
-        {/* Modals */}
-        <AnimatePresence>
-          {openModal && (
-            <FooterModal
-              openModal={openModal}
-              closeModal={() => setOpenModal(null)}
-            />
+
+          {/* Progress Bar */}
+          {stats.total > 0 && (
+            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-2">
+              <motion.div
+                className="bg-gradient-to-r from-indigo-500 to-purple-600 h-2 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${stats.completionRate}%` }}
+                transition={{ duration: 0.5, delay: 0.7 }}
+              />
+            </div>
           )}
 
-          {editingTask && <EditModal />}
+          <p className={`text-sm ${colors.muted}`}>
+            {stats.total === 0
+              ? "Add your first task to start tracking progress!"
+              : `${stats.completed} of ${stats.total} tasks completed (${stats.completionRate}%)`
+            }
+          </p>
+        </motion.div>
 
-          {taskToDelete && <DeleteConfirmationModal />}
+        {/* Export/Import Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0, transition: { delay: 0.7 } }}
+          className="flex justify-center gap-3 mb-8"
+        >
+          <button
+            onClick={exportData}
+            className={`px-4 py-2 rounded-lg ${colors.secondary} ${colors.text} hover:opacity-80 transition-opacity flex items-center gap-2 text-sm`}
+            disabled={isProcessing}
+          >
+            <FiDownload size={16} />
+            <span>Export Data</span>
+          </button>
 
-          {clearAllModalOpen && <ClearAllConfirmationModal />}
+          <label className={`px-4 py-2 rounded-lg ${colors.secondary} ${colors.text} hover:opacity-80 transition-opacity flex items-center gap-2 text-sm cursor-pointer`}>
+            <FiUpload size={16} />
+            <span>Import Data</span>
+            <input
+              type="file"
+              accept=".json"
+              onChange={importData}
+              className="hidden"
+              disabled={isProcessing}
+            />
+          </label>
+        </motion.div>
 
-          {clearCompletedModalOpen && <ClearCompletedConfirmationModal />}
-        </AnimatePresence>
+        {/* Footer */}
+        <motion.footer
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, transition: { delay: 0.8 } }}
+          className={`text-center py-6 ${colors.footer} backdrop-blur-sm rounded-xl border ${colors.border} shadow-sm`}
+        >
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => openModal('about')}
+                className={`flex items-center gap-2 text-sm ${colors.muted} hover:${colors.text} transition-colors`}
+              >
+                <FiInfo size={16} />
+                <span>About</span>
+              </button>
+              <button
+                onClick={() => openModal('privacy')}
+                className={`flex items-center gap-2 text-sm ${colors.muted} hover:${colors.text} transition-colors`}
+              >
+                <FiShield size={16} />
+                <span>Privacy</span>
+              </button>
+              <button
+                onClick={() => openModal('version')}
+                className={`flex items-center gap-2 text-sm ${colors.muted} hover:${colors.text} transition-colors`}
+              >
+                <FiCheckCircle size={16} />
+                <span>v2.0.0</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <a
+                href="https://github.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${colors.muted} hover:${colors.text} transition-colors`}
+                aria-label="GitHub"
+              >
+                <FiGithub size={20} />
+              </a>
+              <a
+                href="https://twitter.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${colors.muted} hover:${colors.text} transition-colors`}
+                aria-label="Twitter"
+              >
+                <FiTwitter size={20} />
+              </a>
+            </div>
+          </div>
+        </motion.footer>
       </div>
 
+      {/* Modals */}
+      <AnimatePresence>
+        <ModalBackdrop isOpen={modal.isOpen} onClose={closeModal}>
+          {renderModalContent()}
+        </ModalBackdrop>
+      </AnimatePresence>
+
+      {/* Toast Notifications */}
+      <AnimatePresence>
+        {toasts.map(toast => (
+          <motion.div
+            key={toast.id}
+            initial={{ opacity: 0, y: 50, scale: 0.3 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
+            className="fixed bottom-4 right-4 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg z-50 font-medium text-sm max-w-sm"
+          >
+            {toast.message}
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
-
 }
