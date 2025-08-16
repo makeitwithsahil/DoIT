@@ -119,6 +119,96 @@ const calculateStreak = (streak) => {
   };
 };
 
+// ENHANCED PWA Detection Utility
+const PWADetector = {
+  isPWA: () => {
+    // Method 1: Check CSS display-mode media query (most reliable for installed PWAs)
+    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+      console.log('PWA detected: standalone display mode');
+      return true;
+    }
+    
+    // Method 2: iOS Safari standalone mode
+    if (window.navigator && 'standalone' in window.navigator && window.navigator.standalone === true) {
+      console.log('PWA detected: iOS standalone mode');
+      return true;
+    }
+    
+    // Method 3: Android TWA (Trusted Web App) detection
+    if (document.referrer.includes('android-app://')) {
+      console.log('PWA detected: Android TWA');
+      return true;
+    }
+    
+    // Method 4: Check for WebView user agent (Android)
+    const userAgent = navigator.userAgent.toLowerCase();
+    if (userAgent.includes('wv') || userAgent.includes('webview')) {
+      console.log('PWA detected: WebView');
+      return true;
+    }
+    
+    // Method 5: Check window properties that indicate PWA
+    if (window.outerWidth === window.innerWidth && window.outerHeight === window.innerHeight) {
+      // This might indicate fullscreen/standalone mode
+      const hasMinimalUI = window.matchMedia && window.matchMedia('(display-mode: minimal-ui)').matches;
+      const hasFullscreen = window.matchMedia && window.matchMedia('(display-mode: fullscreen)').matches;
+      if (hasMinimalUI || hasFullscreen) {
+        console.log('PWA detected: minimal-ui or fullscreen mode');
+        return true;
+      }
+    }
+
+    // Method 6: Check if manually marked as installed
+    try {
+      const pwaStatus = localStorage.getItem('doit-pwa-installed');
+      if (pwaStatus === 'true') {
+        console.log('PWA detected: marked as installed in localStorage');
+        return true;
+      }
+    } catch (e) {
+      // localStorage not available
+    }
+
+    // Method 7: Check for absence of browser UI elements (more heuristic)
+    if (window.navigator.userAgent.includes('Mobile') && 
+        !window.locationbar.visible && 
+        !window.menubar.visible && 
+        !window.personalbar.visible && 
+        !window.statusbar.visible && 
+        !window.toolbar.visible) {
+      console.log('PWA detected: browser UI elements hidden');
+      return true;
+    }
+    
+    console.log('PWA not detected - showing as web app');
+    return false;
+  },
+
+  markAsInstalled: () => {
+    try {
+      localStorage.setItem('doit-pwa-installed', 'true');
+      localStorage.setItem('doit-pwa-install-time', Date.now().toString());
+      console.log('PWA marked as installed');
+    } catch (e) {
+      console.warn('Could not save PWA install status:', e);
+    }
+  },
+
+  isRecentlyInstalled: () => {
+    try {
+      const installTime = localStorage.getItem('doit-pwa-install-time');
+      if (!installTime) return false;
+      
+      const timeDiff = Date.now() - parseInt(installTime);
+      const oneHourInMs = 60 * 60 * 1000; // Check within last hour
+      
+      return timeDiff < oneHourInMs;
+    } catch {
+      return false;
+    }
+  }
+};
+
 // Image Modal Slider Component
 const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors }) {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -227,10 +317,11 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
               <button
                 key={index}
                 onClick={() => setCurrentSlide(index)}
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${index === currentSlide
-                    ? 'bg-white w-6'
+                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                  index === currentSlide 
+                    ? 'bg-white w-6' 
                     : 'bg-white/50 hover:bg-white/70'
-                  }`}
+                }`}
                 aria-label={`Go to slide ${index + 1}`}
               />
             ))}
@@ -272,7 +363,7 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
   );
 });
 
-// Hook for managing visit count and modal display
+// FIXED Hook for managing visit count and modal display
 const useVisitModal = () => {
   const [shouldShowModal, setShouldShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -280,27 +371,47 @@ const useVisitModal = () => {
   useEffect(() => {
     const checkVisitCount = () => {
       try {
-        let visitData = { count: 0, lastVisit: null };
+        // FIRST: Check if app is running as PWA - if yes, never show modal
+        const isPWAMode = PWADetector.isPWA();
+        
+        if (isPWAMode) {
+          console.log('PWA detected - modal will not be shown');
+          setShouldShowModal(false);
+          setIsLoading(false);
+          return;
+        }
 
+        // SECOND: Check if recently installed (within last hour)
+        if (PWADetector.isRecentlyInstalled()) {
+          console.log('Recently installed as PWA - modal will not be shown');
+          setShouldShowModal(false);
+          setIsLoading(false);
+          return;
+        }
+
+        console.log('Running in browser mode - checking visit count');
+
+        let visitData = { count: 0, lastVisit: null };
+        
         if (typeof Storage !== 'undefined' && localStorage) {
           const saved = localStorage.getItem('doit-visits');
           if (saved) {
             visitData = JSON.parse(saved);
           }
         }
-
+        
         const now = Date.now();
         const oneDayAgo = now - (24 * 60 * 60 * 1000);
-
+        
         if (visitData.lastVisit && visitData.lastVisit < oneDayAgo) {
           visitData.count = 0;
         }
-
+        
         visitData.count += 1;
         visitData.lastVisit = now;
-
+        
         const shouldShow = visitData.count === 1 || visitData.count % 5 === 0;
-
+        
         if (typeof Storage !== 'undefined' && localStorage) {
           try {
             localStorage.setItem('doit-visits', JSON.stringify(visitData));
@@ -308,7 +419,8 @@ const useVisitModal = () => {
             console.warn('localStorage not available:', e);
           }
         }
-
+        
+        console.log(`Visit count: ${visitData.count}, Should show modal: ${shouldShow}`);
         setShouldShowModal(shouldShow);
       } catch (error) {
         console.warn('Failed to check visit count:', error);
@@ -318,8 +430,8 @@ const useVisitModal = () => {
       }
     };
 
-    // Small delay to ensure smooth loading
-    const timer = setTimeout(checkVisitCount, 500);
+    // Delay to ensure DOM is ready and PWA detection works properly
+    const timer = setTimeout(checkVisitCount, 1000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -330,32 +442,36 @@ const useVisitModal = () => {
   return { shouldShowModal, closeModal, isLoading };
 };
 
-// PWA Install Component
-// Enhanced PWA Install Component with install tracking
+// Enhanced PWA Install Component
 const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
     // Don't show prompt if already running as PWA
-    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
-      return;
-    }
-
-    if (window.navigator && window.navigator.standalone === true) {
+    if (PWADetector.isPWA()) {
       return;
     }
 
     const handler = (e) => {
       e.preventDefault();
+      console.log('beforeinstallprompt fired');
       setDeferredPrompt(e);
-
-      // Check if user has previously dismissed or installed
+      
+      // Check if user has previously dismissed
       try {
-        const pwaStatus = localStorage.getItem('doit-pwa-status');
-        if (pwaStatus !== 'dismissed' && pwaStatus !== 'installed') {
-          setShowPrompt(true);
+        const pwaStatus = localStorage.getItem('doit-pwa-dismissed');
+        const dismissTime = localStorage.getItem('doit-pwa-dismiss-time');
+        
+        // Show prompt again after 3 days if previously dismissed
+        if (pwaStatus === 'true' && dismissTime) {
+          const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
+          if (parseInt(dismissTime) > threeDaysAgo) {
+            return; // Still in dismissal period
+          }
         }
+        
+        setShowPrompt(true);
       } catch {
         setShowPrompt(true);
       }
@@ -363,19 +479,23 @@ const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
 
     // Listen for successful installation
     const installHandler = () => {
-      try {
-        localStorage.setItem('doit-pwa-status', 'installed');
-        localStorage.setItem('doit-pwa-install-time', Date.now().toString());
-      } catch (e) {
-        console.warn('Could not save PWA install status:', e);
-      }
+      console.log('App installed successfully');
+      PWADetector.markAsInstalled();
       setShowPrompt(false);
       setDeferredPrompt(null);
+      
+      // Clear dismissal status since app is now installed
+      try {
+        localStorage.removeItem('doit-pwa-dismissed');
+        localStorage.removeItem('doit-pwa-dismiss-time');
+      } catch (e) {
+        console.warn('Could not clear PWA dismissal status:', e);
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handler);
     window.addEventListener('appinstalled', installHandler);
-
+    
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
       window.removeEventListener('appinstalled', installHandler);
@@ -385,24 +505,22 @@ const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
   const handleInstall = useCallback(async () => {
     if (!deferredPrompt) return;
 
+    console.log('User clicked install');
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
+    console.log('User choice outcome:', outcome);
 
     if (outcome === 'accepted') {
-      try {
-        localStorage.setItem('doit-pwa-status', 'installed');
-        localStorage.setItem('doit-pwa-install-time', Date.now().toString());
-      } catch (e) {
-        console.warn('Could not save PWA install status:', e);
-      }
+      PWADetector.markAsInstalled();
       setDeferredPrompt(null);
       setShowPrompt(false);
     }
   }, [deferredPrompt]);
 
   const dismissPrompt = useCallback(() => {
+    console.log('User dismissed install prompt');
     try {
-      localStorage.setItem('doit-pwa-status', 'dismissed');
+      localStorage.setItem('doit-pwa-dismissed', 'true');
       localStorage.setItem('doit-pwa-dismiss-time', Date.now().toString());
     } catch (e) {
       console.warn('Could not save PWA dismiss status:', e);
@@ -958,7 +1076,7 @@ const ModalBackdrop = React.memo(function ModalBackdrop({ children, onClose }) {
 export default function DoIT() {
   const inputRef = useRef(null);
 
-  // Visit modal hook
+  // Visit modal hook - FIXED VERSION
   const { shouldShowModal, closeModal: closeVisitModal, isLoading } = useVisitModal();
 
   // Simplified modal state
@@ -1652,9 +1770,9 @@ export default function DoIT() {
         )}
       </AnimatePresence>
 
-      {/* Visit Modal - Only show on mobile and tablet */}
+      {/* FIXED Visit Modal - Only show when NOT PWA and NOT loading */}
       <AnimatePresence>
-        {shouldShowModal && !isLoading && (
+        {shouldShowModal && !isLoading && !PWADetector.isPWA() && (
           <div className="block lg:hidden">
             <ImageModalSlider onClose={closeVisitModal} colors={colors} />
           </div>
@@ -1953,10 +2071,10 @@ export default function DoIT() {
         </motion.footer>
       </div>
 
-      {/* PWA Install Prompt */}
+      {/* PWA Install Prompt - Enhanced Version */}
       <PWAInstallPrompt colors={colors} />
 
-      {/* Modals - FIXED to prevent double rendering */}
+      {/* Modals */}
       <AnimatePresence>
         {modal && (
           <ModalBackdrop onClose={closeModal}>
