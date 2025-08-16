@@ -227,11 +227,10 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
               <button
                 key={index}
                 onClick={() => setCurrentSlide(index)}
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                  index === currentSlide 
-                    ? 'bg-white w-6' 
+                className={`w-2 h-2 rounded-full transition-all duration-300 ${index === currentSlide
+                    ? 'bg-white w-6'
                     : 'bg-white/50 hover:bg-white/70'
-                }`}
+                  }`}
                 aria-label={`Go to slide ${index + 1}`}
               />
             ))}
@@ -282,26 +281,26 @@ const useVisitModal = () => {
     const checkVisitCount = () => {
       try {
         let visitData = { count: 0, lastVisit: null };
-        
+
         if (typeof Storage !== 'undefined' && localStorage) {
           const saved = localStorage.getItem('doit-visits');
           if (saved) {
             visitData = JSON.parse(saved);
           }
         }
-        
+
         const now = Date.now();
         const oneDayAgo = now - (24 * 60 * 60 * 1000);
-        
+
         if (visitData.lastVisit && visitData.lastVisit < oneDayAgo) {
           visitData.count = 0;
         }
-        
+
         visitData.count += 1;
         visitData.lastVisit = now;
-        
+
         const shouldShow = visitData.count === 1 || visitData.count % 5 === 0;
-        
+
         if (typeof Storage !== 'undefined' && localStorage) {
           try {
             localStorage.setItem('doit-visits', JSON.stringify(visitData));
@@ -309,7 +308,7 @@ const useVisitModal = () => {
             console.warn('localStorage not available:', e);
           }
         }
-        
+
         setShouldShowModal(shouldShow);
       } catch (error) {
         console.warn('Failed to check visit count:', error);
@@ -332,19 +331,55 @@ const useVisitModal = () => {
 };
 
 // PWA Install Component
+// Enhanced PWA Install Component with install tracking
 const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
+    // Don't show prompt if already running as PWA
+    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+      return;
+    }
+
+    if (window.navigator && window.navigator.standalone === true) {
+      return;
+    }
+
     const handler = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setShowPrompt(true);
+
+      // Check if user has previously dismissed or installed
+      try {
+        const pwaStatus = localStorage.getItem('doit-pwa-status');
+        if (pwaStatus !== 'dismissed' && pwaStatus !== 'installed') {
+          setShowPrompt(true);
+        }
+      } catch {
+        setShowPrompt(true);
+      }
+    };
+
+    // Listen for successful installation
+    const installHandler = () => {
+      try {
+        localStorage.setItem('doit-pwa-status', 'installed');
+        localStorage.setItem('doit-pwa-install-time', Date.now().toString());
+      } catch (e) {
+        console.warn('Could not save PWA install status:', e);
+      }
+      setShowPrompt(false);
+      setDeferredPrompt(null);
     };
 
     window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', installHandler);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', installHandler);
+    };
   }, []);
 
   const handleInstall = useCallback(async () => {
@@ -354,12 +389,24 @@ const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
     const { outcome } = await deferredPrompt.userChoice;
 
     if (outcome === 'accepted') {
+      try {
+        localStorage.setItem('doit-pwa-status', 'installed');
+        localStorage.setItem('doit-pwa-install-time', Date.now().toString());
+      } catch (e) {
+        console.warn('Could not save PWA install status:', e);
+      }
       setDeferredPrompt(null);
       setShowPrompt(false);
     }
   }, [deferredPrompt]);
 
   const dismissPrompt = useCallback(() => {
+    try {
+      localStorage.setItem('doit-pwa-status', 'dismissed');
+      localStorage.setItem('doit-pwa-dismiss-time', Date.now().toString());
+    } catch (e) {
+      console.warn('Could not save PWA dismiss status:', e);
+    }
     setShowPrompt(false);
     setDeferredPrompt(null);
   }, []);
