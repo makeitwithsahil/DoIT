@@ -25,6 +25,25 @@ const CELEBRATIONS = [
   "Another win! 🚀"
 ];
 
+// Image Modal Slider Images
+const SLIDER_IMAGES = [
+  {
+    src: "/step-1.jpg",
+    title: "Install App",
+    description: "Click on three dot in the top right corner."
+  },
+  {
+    src: "/step-2.jpg",
+    title: "Install App",
+    description: "Click on Add to Home Screen Button."
+  },
+  {
+    src: "/step-3.jpg",
+    title: "Install App",
+    description: "Click on Install Button"
+  }
+];
+
 const PRIORITY_OPTIONS = [
   { value: 'low', label: 'Low', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/80 dark:text-blue-100' },
   { value: 'medium', label: 'Medium', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/80 dark:text-yellow-100' },
@@ -98,6 +117,218 @@ const calculateStreak = (streak) => {
     current: isConsecutive ? streak.current + 1 : 1,
     lastDate: Date.now(),
   };
+};
+
+// Image Modal Slider Component
+const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors }) {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const nextSlide = useCallback(() => {
+    setCurrentSlide(prev => (prev + 1) % SLIDER_IMAGES.length);
+  }, []);
+
+  const prevSlide = useCallback(() => {
+    setCurrentSlide(prev => (prev - 1 + SLIDER_IMAGES.length) % SLIDER_IMAGES.length);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(onClose, 150);
+  }, [onClose]);
+
+  // Auto-advance slides every 6 seconds
+  useEffect(() => {
+    const interval = setInterval(nextSlide, 6000);
+    return () => clearInterval(interval);
+  }, [nextSlide]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      switch (e.key) {
+        case 'ArrowLeft':
+          prevSlide();
+          break;
+        case 'ArrowRight':
+          nextSlide();
+          break;
+        case 'Escape':
+          handleClose();
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyPress);
+    return () => document.removeEventListener('keydown', handleKeyPress);
+  }, [nextSlide, prevSlide, handleClose]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: isClosing ? 0 : 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4"
+      onClick={(e) => e.target === e.currentTarget && handleClose()}
+    >
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0, y: 50 }}
+        animate={{ scale: isClosing ? 0.8 : 1, opacity: isClosing ? 0 : 1, y: isClosing ? 50 : 0 }}
+        transition={{ duration: 0.4, type: "spring", damping: 25 }}
+        className={`relative w-full max-w-md mx-auto ${colors.card} rounded-2xl overflow-hidden shadow-2xl`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close Button */}
+        <button
+          onClick={handleClose}
+          className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/30 transition-all duration-200"
+          aria-label="Close modal"
+        >
+          <FiX size={20} />
+        </button>
+
+        {/* Image Container */}
+        <div className="relative aspect-[3/4]">
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={currentSlide}
+              src={SLIDER_IMAGES[currentSlide].src}
+              alt={SLIDER_IMAGES[currentSlide].title}
+              className="absolute inset-0 w-full h-full object-cover"
+              initial={{ opacity: 0, scale: 1.1 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.6, ease: "easeInOut" }}
+              loading="lazy"
+            />
+          </AnimatePresence>
+
+          {/* Navigation Arrows */}
+          <button
+            onClick={prevSlide}
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/30 transition-all duration-200 hover:scale-110"
+            aria-label="Previous image"
+          >
+            <FiChevronLeft size={20} />
+          </button>
+
+          <button
+            onClick={nextSlide}
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/30 transition-all duration-200 hover:scale-110"
+            aria-label="Next image"
+          >
+            <FiChevronRight size={20} />
+          </button>
+
+          {/* Slide Indicators */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+            {SLIDER_IMAGES.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentSlide(index)}
+                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                  index === currentSlide 
+                    ? 'bg-white w-6' 
+                    : 'bg-white/50 hover:bg-white/70'
+                }`}
+                aria-label={`Go to slide ${index + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Content Section */}
+        <div className="p-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSlide}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              className="text-center"
+            >
+              <h3 className={`text-xl font-bold ${colors.text} mb-3`}>
+                {SLIDER_IMAGES[currentSlide].title}
+              </h3>
+              <p className={`${colors.muted} text-sm leading-relaxed mb-6`}>
+                {SLIDER_IMAGES[currentSlide].description}
+              </p>
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Action Button */}
+          <motion.button
+            onClick={handleClose}
+            className={`w-full py-3 px-6 rounded-xl ${colors.primary} text-white font-medium hover:opacity-90 transition-all duration-200 flex items-center justify-center gap-2`}
+            whileTap={{ scale: 0.98 }}
+          >
+            <span>Get Started</span>
+            <FiChevronRight size={16} />
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+});
+
+// Hook for managing visit count and modal display
+const useVisitModal = () => {
+  const [shouldShowModal, setShouldShowModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkVisitCount = () => {
+      try {
+        let visitData = { count: 0, lastVisit: null };
+        
+        if (typeof Storage !== 'undefined' && localStorage) {
+          const saved = localStorage.getItem('doit-visits');
+          if (saved) {
+            visitData = JSON.parse(saved);
+          }
+        }
+        
+        const now = Date.now();
+        const oneDayAgo = now - (24 * 60 * 60 * 1000);
+        
+        if (visitData.lastVisit && visitData.lastVisit < oneDayAgo) {
+          visitData.count = 0;
+        }
+        
+        visitData.count += 1;
+        visitData.lastVisit = now;
+        
+        const shouldShow = visitData.count === 1 || visitData.count % 5 === 0;
+        
+        if (typeof Storage !== 'undefined' && localStorage) {
+          try {
+            localStorage.setItem('doit-visits', JSON.stringify(visitData));
+          } catch (e) {
+            console.warn('localStorage not available:', e);
+          }
+        }
+        
+        setShouldShowModal(shouldShow);
+      } catch (error) {
+        console.warn('Failed to check visit count:', error);
+        setShouldShowModal(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Small delay to ensure smooth loading
+    const timer = setTimeout(checkVisitCount, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setShouldShowModal(false);
+  }, []);
+
+  return { shouldShowModal, closeModal, isLoading };
 };
 
 // PWA Install Component
@@ -259,7 +490,6 @@ const CustomDatePicker = React.memo(function CustomDatePicker({
     const today = new Date();
     const days = [];
 
-    // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
       days.push(<div key={`empty-${i}`} className="w-10 h-10" />);
     }
@@ -639,7 +869,6 @@ const TaskItem = React.memo(function TaskItem({
   );
 });
 
-// Modal Components - Fixed to prevent double rendering
 const ModalBackdrop = React.memo(function ModalBackdrop({ children, onClose }) {
   const backdropRef = useRef(null);
 
@@ -682,28 +911,40 @@ const ModalBackdrop = React.memo(function ModalBackdrop({ children, onClose }) {
 export default function DoIT() {
   const inputRef = useRef(null);
 
+  // Visit modal hook
+  const { shouldShowModal, closeModal: closeVisitModal, isLoading } = useVisitModal();
+
   // Simplified modal state
   const [modal, setModal] = useState(null);
 
   // State with better initialization
   const [tasks, setTasks] = useState(() => {
     try {
-      const saved = localStorage?.getItem('doit-tasks');
-      return saved ? JSON.parse(saved) : [];
+      if (typeof Storage !== 'undefined' && localStorage) {
+        const saved = localStorage.getItem('doit-tasks');
+        return saved ? JSON.parse(saved) : [];
+      }
+      return [];
     } catch { return []; }
   });
 
   const [filter, setFilter] = useState(() => {
     try {
-      const saved = sessionStorage?.getItem('doit-filter');
-      return saved || 'active';
+      if (typeof Storage !== 'undefined' && sessionStorage) {
+        const saved = sessionStorage.getItem('doit-filter');
+        return saved || 'active';
+      }
+      return 'active';
     } catch { return 'active'; }
   });
 
   const [theme, setTheme] = useState(() => {
     try {
-      const saved = localStorage?.getItem('doit-theme');
-      return saved || 'light';
+      if (typeof Storage !== 'undefined' && localStorage) {
+        const saved = localStorage.getItem('doit-theme');
+        return saved || 'light';
+      }
+      return 'light';
     } catch { return 'light'; }
   });
 
@@ -711,13 +952,16 @@ export default function DoIT() {
   const [toasts, setToasts] = useState([]);
   const [meta, setMeta] = useState(() => {
     try {
-      const saved = localStorage?.getItem('doit-meta');
-      return saved ? JSON.parse(saved) : {
-        points: 0,
-        streak: { current: 0, lastDate: null },
-        theme: 'light',
-        version: 2
-      };
+      if (typeof Storage !== 'undefined' && localStorage) {
+        const saved = localStorage.getItem('doit-meta');
+        return saved ? JSON.parse(saved) : {
+          points: 0,
+          streak: { current: 0, lastDate: null },
+          theme: 'light',
+          version: 2
+        };
+      }
+      return { points: 0, streak: { current: 0, lastDate: null }, theme: 'light', version: 2 };
     } catch {
       return { points: 0, streak: { current: 0, lastDate: null }, theme: 'light', version: 2 };
     }
@@ -729,7 +973,6 @@ export default function DoIT() {
 
   const colors = useMemo(() => COLORS[theme], [theme]);
 
-  // Optimized filtered tasks with better memoization
   const filteredTasks = useMemo(() => {
     return tasks
       .filter(task => {
@@ -770,7 +1013,7 @@ export default function DoIT() {
 
   // Optimized persistence effects
   useEffect(() => {
-    if (typeof localStorage !== 'undefined') {
+    if (typeof Storage !== 'undefined' && localStorage) {
       try {
         localStorage.setItem('doit-tasks', JSON.stringify(tasks));
       } catch (e) {
@@ -780,7 +1023,7 @@ export default function DoIT() {
   }, [tasks]);
 
   useEffect(() => {
-    if (typeof sessionStorage !== 'undefined') {
+    if (typeof Storage !== 'undefined' && sessionStorage) {
       try {
         sessionStorage.setItem('doit-filter', filter);
       } catch (e) {
@@ -790,7 +1033,7 @@ export default function DoIT() {
   }, [filter]);
 
   useEffect(() => {
-    if (typeof localStorage !== 'undefined') {
+    if (typeof Storage !== 'undefined' && localStorage) {
       try {
         localStorage.setItem('doit-theme', theme);
         localStorage.setItem('doit-meta', JSON.stringify({ ...meta, theme }));
@@ -1322,7 +1565,6 @@ export default function DoIT() {
     );
   }, [modal?.type, colors, tasks, meta, closeModal]);
 
-  // Render appropriate modal content - FIXED to prevent double modals
   const renderModalContent = useCallback(() => {
     if (!modal) return null;
 
@@ -1346,6 +1588,32 @@ export default function DoIT() {
 
   return (
     <div className={`min-h-screen ${colors.background} transition-colors duration-300`}>
+      {/* Loading Screen */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className={`fixed inset-0 ${colors.background} z-50 flex items-center justify-center`}
+          >
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-12 h-12 border-4 border-indigo-200 dark:border-indigo-800 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin" />
+              <p className={`text-sm ${colors.muted}`}>Loading DoIT...</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Visit Modal - Only show on mobile and tablet */}
+      <AnimatePresence>
+        {shouldShowModal && !isLoading && (
+          <div className="block lg:hidden">
+            <ImageModalSlider onClose={closeVisitModal} colors={colors} />
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-4xl mx-auto p-4 md:p-6 pb-4 pt-4 relative">
         {/* Header */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -1610,7 +1878,7 @@ export default function DoIT() {
                 <span>v2.0.0</span>
               </button>
             </div>
-            <span className="-ml-10"><p className={`text-xs ${colors.muted}`}>
+            <span className="sm:-ml-10"><p className={`text-xs ${colors.muted}`}>
               Made with <FiHeart className="inline text-red-500 mx-1" /> by <a style={{ textDecoration: 'underline' }} href="https://sahilmaurya.vercel.app" target='_blank'>Sahil Maurya</a>
             </p></span>
 
