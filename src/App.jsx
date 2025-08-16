@@ -1279,7 +1279,7 @@ export default function DoIT() {
               </div>
               <div className={`mt-4 pt-4 border-t ${colors.border} text-center`}>
                 <p className={`text-xs ${colors.muted}`}>
-                  Made with <FiHeart className="inline text-red-500 mx-1" /> by Sahil Maurya
+                  Made with <FiHeart className="inline text-red-500 mx-1" /> by <a style={{ textDecoration: 'underline' }} href="https://sahilmaurya.vercel.app" target='_blank'>Sahil Maurya</a>
                 </p>
               </div>
             </>
@@ -1611,7 +1611,7 @@ export default function DoIT() {
               </button>
             </div>
             <span className="-ml-10"><p className={`text-xs ${colors.muted}`}>
-              Made with <FiHeart className="inline text-red-500 mx-1" /> by Sahil Maurya
+              Made with <FiHeart className="inline text-red-500 mx-1" /> by <a style={{ textDecoration: 'underline' }} href="https://sahilmaurya.vercel.app" target='_blank'>Sahil Maurya</a>
             </p></span>
 
             <div className="flex items-center gap-4">
