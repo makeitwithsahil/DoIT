@@ -127,26 +127,26 @@ const PWADetector = {
       console.log('PWA detected: standalone display mode');
       return true;
     }
-    
+
     // Method 2: iOS Safari standalone mode
     if (window.navigator && 'standalone' in window.navigator && window.navigator.standalone === true) {
       console.log('PWA detected: iOS standalone mode');
       return true;
     }
-    
+
     // Method 3: Android TWA (Trusted Web App) detection
     if (document.referrer.includes('android-app://')) {
       console.log('PWA detected: Android TWA');
       return true;
     }
-    
+
     // Method 4: Check for WebView user agent (Android)
     const userAgent = navigator.userAgent.toLowerCase();
     if (userAgent.includes('wv') || userAgent.includes('webview')) {
       console.log('PWA detected: WebView');
       return true;
     }
-    
+
     // Method 5: Check window properties that indicate PWA
     if (window.outerWidth === window.innerWidth && window.outerHeight === window.innerHeight) {
       // This might indicate fullscreen/standalone mode
@@ -170,16 +170,16 @@ const PWADetector = {
     }
 
     // Method 7: Check for absence of browser UI elements (more heuristic)
-    if (window.navigator.userAgent.includes('Mobile') && 
-        !window.locationbar.visible && 
-        !window.menubar.visible && 
-        !window.personalbar.visible && 
-        !window.statusbar.visible && 
-        !window.toolbar.visible) {
+    if (window.navigator.userAgent.includes('Mobile') &&
+      !window.locationbar.visible &&
+      !window.menubar.visible &&
+      !window.personalbar.visible &&
+      !window.statusbar.visible &&
+      !window.toolbar.visible) {
       console.log('PWA detected: browser UI elements hidden');
       return true;
     }
-    
+
     console.log('PWA not detected - showing as web app');
     return false;
   },
@@ -198,10 +198,10 @@ const PWADetector = {
     try {
       const installTime = localStorage.getItem('doit-pwa-install-time');
       if (!installTime) return false;
-      
+
       const timeDiff = Date.now() - parseInt(installTime);
       const oneHourInMs = 60 * 60 * 1000; // Check within last hour
-      
+
       return timeDiff < oneHourInMs;
     } catch {
       return false;
@@ -317,11 +317,10 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
               <button
                 key={index}
                 onClick={() => setCurrentSlide(index)}
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                  index === currentSlide 
-                    ? 'bg-white w-6' 
+                className={`w-2 h-2 rounded-full transition-all duration-300 ${index === currentSlide
+                    ? 'bg-white w-6'
                     : 'bg-white/50 hover:bg-white/70'
-                }`}
+                  }`}
                 aria-label={`Go to slide ${index + 1}`}
               />
             ))}
@@ -373,7 +372,7 @@ const useVisitModal = () => {
       try {
         // FIRST: Check if app is running as PWA - if yes, never show modal
         const isPWAMode = PWADetector.isPWA();
-        
+
         if (isPWAMode) {
           console.log('PWA detected - modal will not be shown');
           setShouldShowModal(false);
@@ -392,26 +391,26 @@ const useVisitModal = () => {
         console.log('Running in browser mode - checking visit count');
 
         let visitData = { count: 0, lastVisit: null };
-        
+
         if (typeof Storage !== 'undefined' && localStorage) {
           const saved = localStorage.getItem('doit-visits');
           if (saved) {
             visitData = JSON.parse(saved);
           }
         }
-        
+
         const now = Date.now();
         const oneDayAgo = now - (24 * 60 * 60 * 1000);
-        
+
         if (visitData.lastVisit && visitData.lastVisit < oneDayAgo) {
           visitData.count = 0;
         }
-        
+
         visitData.count += 1;
         visitData.lastVisit = now;
-        
+
         const shouldShow = visitData.count === 1 || visitData.count % 5 === 0;
-        
+
         if (typeof Storage !== 'undefined' && localStorage) {
           try {
             localStorage.setItem('doit-visits', JSON.stringify(visitData));
@@ -419,7 +418,7 @@ const useVisitModal = () => {
             console.warn('localStorage not available:', e);
           }
         }
-        
+
         console.log(`Visit count: ${visitData.count}, Should show modal: ${shouldShow}`);
         setShouldShowModal(shouldShow);
       } catch (error) {
@@ -457,12 +456,12 @@ const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
       e.preventDefault();
       console.log('beforeinstallprompt fired');
       setDeferredPrompt(e);
-      
+
       // Check if user has previously dismissed
       try {
         const pwaStatus = localStorage.getItem('doit-pwa-dismissed');
         const dismissTime = localStorage.getItem('doit-pwa-dismiss-time');
-        
+
         // Show prompt again after 3 days if previously dismissed
         if (pwaStatus === 'true' && dismissTime) {
           const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
@@ -470,7 +469,7 @@ const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
             return; // Still in dismissal period
           }
         }
-        
+
         setShowPrompt(true);
       } catch {
         setShowPrompt(true);
@@ -483,7 +482,7 @@ const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
       PWADetector.markAsInstalled();
       setShowPrompt(false);
       setDeferredPrompt(null);
-      
+
       // Clear dismissal status since app is now installed
       try {
         localStorage.removeItem('doit-pwa-dismissed');
@@ -495,7 +494,7 @@ const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
 
     window.addEventListener('beforeinstallprompt', handler);
     window.addEventListener('appinstalled', installHandler);
-    
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
       window.removeEventListener('appinstalled', installHandler);
