@@ -1,12 +1,25 @@
-# React + Vite
+# DoIT — Minimal, Smart & Motivating Task Manager  
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+DoIT is a clean and lightweight task manager built to help you stay focused without distractions.  
+It combines a modern UI with smooth animations and dark mode to make productivity feel effortless.  
 
-Currently, two official plugins are available:
+## Features  
+- ✨ Minimal and modern interface  
+- ⚡ Fast and lag-free performance  
+- 📱 Fully responsive design  
+- 🎯 Task management with priorities & due dates  
+- 🌙 Dark mode included  
+- 🔄 Data persistence so tasks never get lost  
+- 💡 Designed to feel effortless, not overwhelming  
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack  
+React • Vite • Tailwind CSS • Framer Motion  
 
-## Expanding the ESLint configuration
+## Why DoIT?  
+Unlike bloated task apps, DoIT focuses only on what matters — creating, organizing, and completing tasks smoothly.  
+It’s simple enough for personal use, but polished enough to showcase as a portfolio project.  
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+Built with ❤️ and attention to detail — because productivity apps should feel good to use.  
+Sahil Maurya!
