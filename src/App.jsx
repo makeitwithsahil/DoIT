@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiPlus, FiCheckCircle, FiStar, FiClock,
   FiTrash2, FiEdit2, FiZap, FiTrash, FiSun, FiMoon,
-  FiRotateCcw, FiCalendar, FiX,
+  FiRotateCcw, FiCalendar, FiX, FiBell, FiBellOff,
   FiGithub, FiTwitter, FiInfo, FiShield, FiHeart,
-  FiChevronLeft, FiChevronRight, FiDownload, FiUpload
+  FiChevronLeft, FiChevronRight, FiDownload, FiUpload,
+  FiAlertTriangle, FiTarget
 } from 'react-icons/fi';
 
 // Constants & Helpers
@@ -25,20 +26,54 @@ const CELEBRATIONS = [
   "Another win! 🚀"
 ];
 
+// Motivational notification messages
+const NOTIFICATION_MESSAGES = {
+  overdue: [
+    "Hey champion! You've got some overdue tasks waiting for your magic touch ✨",
+    "Time to tackle those overdue tasks and show them who's boss! 💪",
+    "Your overdue tasks are calling - let's turn them into victories! 🏆",
+    "Ready to conquer those overdue tasks? You've got this! 🚀"
+  ],
+  noTasks: [
+    "Your task list is empty! Time to add some goals and make today amazing! 🌟",
+    "No tasks yet? Let's plan something awesome for today! ✨",
+    "Ready to be productive? Add your first task and let's get started! 🎯",
+    "Your canvas is blank - time to paint it with productive tasks! 🎨"
+  ],
+  tooMany: [
+    "You're ambitious! But maybe it's time to complete some of those tasks? 💼",
+    "Wow, lots of tasks! Let's knock a few off that list - you'll feel amazing! ⚡",
+    "Time to be a task-completing machine! Pick one and make it happen! 🔥",
+    "So many opportunities to succeed! Let's complete a few and celebrate! 🎉"
+  ],
+  morning: [
+    "Good morning, productivity champion! Ready to plan an amazing day? ☀️",
+    "Rise and shine! Let's set some goals and make today incredible! 🌅",
+    "Morning motivation incoming! Time to add today's tasks and win the day! 🏆",
+    "New day, new possibilities! What amazing things will you accomplish? ✨"
+  ],
+  evening: [
+    "Evening reflection time! How did today go? Ready to plan tomorrow? 🌙",
+    "Time to review today's wins and set up tomorrow for success! ⭐",
+    "Evening check-in! Let's plan tomorrow and make it even better! 🌟",
+    "Day's almost done! Time to prepare for another productive tomorrow! 🎯"
+  ]
+};
+
 // Image Modal Slider Images
 const SLIDER_IMAGES = [
   {
-    src: "/step-1.jpg",
+    src: "/api/placeholder/400/600",
     title: "Install App",
     description: "Click on three dot in the top right corner."
   },
   {
-    src: "/step-2.jpg",
+    src: "/api/placeholder/400/600",
     title: "Install App",
     description: "Click on Add to Home Screen Button."
   },
   {
-    src: "/step-3.jpg",
+    src: "/api/placeholder/400/600",
     title: "Install App",
     description: "Click on Install Button"
   }
@@ -122,65 +157,25 @@ const calculateStreak = (streak) => {
 // ENHANCED PWA Detection Utility
 const PWADetector = {
   isPWA: () => {
-    // Method 1: Check CSS display-mode media query (most reliable for installed PWAs)
+    if (typeof window === 'undefined') return false;
+    
     if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
-      console.log('PWA detected: standalone display mode');
       return true;
     }
 
-    // Method 2: iOS Safari standalone mode
     if (window.navigator && 'standalone' in window.navigator && window.navigator.standalone === true) {
-      console.log('PWA detected: iOS standalone mode');
       return true;
     }
 
-    // Method 3: Android TWA (Trusted Web App) detection
     if (document.referrer.includes('android-app://')) {
-      console.log('PWA detected: Android TWA');
       return true;
     }
 
-    // Method 4: Check for WebView user agent (Android)
     const userAgent = navigator.userAgent.toLowerCase();
     if (userAgent.includes('wv') || userAgent.includes('webview')) {
-      console.log('PWA detected: WebView');
       return true;
     }
 
-    // Method 5: Check window properties that indicate PWA
-    if (window.outerWidth === window.innerWidth && window.outerHeight === window.innerHeight) {
-      // This might indicate fullscreen/standalone mode
-      const hasMinimalUI = window.matchMedia && window.matchMedia('(display-mode: minimal-ui)').matches;
-      const hasFullscreen = window.matchMedia && window.matchMedia('(display-mode: fullscreen)').matches;
-      if (hasMinimalUI || hasFullscreen) {
-        console.log('PWA detected: minimal-ui or fullscreen mode');
-        return true;
-      }
-    }
-
-    // Method 6: Check if manually marked as installed
-    try {
-      const pwaStatus = localStorage.getItem('doit-pwa-installed');
-      if (pwaStatus === 'true') {
-        console.log('PWA detected: marked as installed in localStorage');
-        return true;
-      }
-    } catch (e) {
-      // localStorage not available
-    }
-
-    // Method 7: Check for absence of browser UI elements (more heuristic)
-    if (window.navigator.userAgent.includes('Mobile') &&
-      !window.locationbar.visible &&
-      !window.menubar.visible &&
-      !window.personalbar.visible &&
-      !window.statusbar.visible &&
-      !window.toolbar.visible) {
-      console.log('PWA detected: browser UI elements hidden');
-      return true;
-    }
-
-    console.log('PWA not detected - showing as web app');
     return false;
   },
 
@@ -188,7 +183,6 @@ const PWADetector = {
     try {
       localStorage.setItem('doit-pwa-installed', 'true');
       localStorage.setItem('doit-pwa-install-time', Date.now().toString());
-      console.log('PWA marked as installed');
     } catch (e) {
       console.warn('Could not save PWA install status:', e);
     }
@@ -200,7 +194,7 @@ const PWADetector = {
       if (!installTime) return false;
 
       const timeDiff = Date.now() - parseInt(installTime);
-      const oneHourInMs = 60 * 60 * 1000; // Check within last hour
+      const oneHourInMs = 60 * 60 * 1000;
 
       return timeDiff < oneHourInMs;
     } catch {
@@ -208,6 +202,407 @@ const PWADetector = {
     }
   }
 };
+
+// Notification System
+class NotificationManager {
+  constructor() {
+    this.permission = 'default';
+    this.isSupported = typeof window !== 'undefined' && 'Notification' in window;
+  }
+
+  async requestPermission() {
+    if (!this.isSupported) return false;
+
+    try {
+      const permission = await Notification.requestPermission();
+      this.permission = permission;
+      return permission === 'granted';
+    } catch (error) {
+      console.warn('Error requesting notification permission:', error);
+      return false;
+    }
+  }
+
+  canShowNotifications() {
+    return this.isSupported && this.permission === 'granted';
+  }
+
+  showNotification(title, options = {}) {
+    if (!this.canShowNotifications()) return;
+
+    const defaultOptions = {
+      icon: '/icon-192x192.png',
+      badge: '/icon-72x72.png',
+      tag: 'doit-notification',
+      requireInteraction: false,
+      silent: false,
+      ...options
+    };
+
+    try {
+      return new Notification(title, defaultOptions);
+    } catch (error) {
+      console.warn('Error showing notification:', error);
+      return null;
+    }
+  }
+}
+
+// Notification Component
+const NotificationCard = React.memo(function NotificationCard({
+  notification,
+  onDismiss,
+  onAction,
+  colors
+}) {
+  const getIcon = (type) => {
+    switch (type) {
+      case 'overdue': return FiAlertTriangle;
+      case 'noTasks': return FiTarget;
+      case 'tooMany': return FiZap;
+      case 'morning': return FiSun;
+      case 'evening': return FiMoon;
+      default: return FiBell;
+    }
+  };
+
+  const getIconColor = (type) => {
+    switch (type) {
+      case 'overdue': return 'text-red-500';
+      case 'noTasks': return 'text-blue-500';
+      case 'tooMany': return 'text-orange-500';
+      case 'morning': return 'text-yellow-500';
+      case 'evening': return 'text-purple-500';
+      default: return 'text-indigo-500';
+    }
+  };
+
+  const IconComponent = getIcon(notification.type);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 100, scale: 0.3 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={{ opacity: 0, x: 100, scale: 0.5, transition: { duration: 0.2 } }}
+      className={`${colors.card} rounded-2xl border ${colors.border} shadow-2xl backdrop-blur-sm max-w-sm w-full overflow-hidden`}
+    >
+      {/* Header with gradient */}
+      <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 p-1">
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-full bg-white/10 flex items-center justify-center ${getIconColor(notification.type)}`}>
+              <IconComponent size={20} />
+            </div>
+            <div>
+              <h4 className={`font-semibold ${colors.text} text-sm`}>
+                {notification.title}
+              </h4>
+              <p className={`text-xs ${colors.muted}`}>
+                {new Date(notification.timestamp).toLocaleTimeString()}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onDismiss(notification.id)}
+            className={`p-1.5 rounded-full hover:bg-white/10 transition-colors ${colors.muted}`}
+          >
+            <FiX size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4 pt-0">
+        <p className={`text-sm ${colors.text} leading-relaxed mb-4`}>
+          {notification.message}
+        </p>
+
+        {/* Actions */}
+        {notification.actions && notification.actions.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            {notification.actions.map((action, index) => (
+              <button
+                key={index}
+                onClick={() => onAction(notification.id, action.action)}
+                className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${action.primary
+                    ? colors.primary + ' text-white hover:scale-105'
+                    : colors.secondary + ' ' + colors.text + ' hover:opacity-80'
+                  }`}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Progress bar for auto-dismiss */}
+      {notification.autoDismiss && (
+        <div className="h-1 bg-slate-200 dark:bg-slate-700">
+          <motion.div
+            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500"
+            initial={{ width: '100%' }}
+            animate={{ width: '0%' }}
+            transition={{ duration: notification.duration / 1000, ease: 'linear' }}
+          />
+        </div>
+      )}
+    </motion.div>
+  );
+});
+
+// Notification Settings Modal
+const NotificationSettingsModal = React.memo(function NotificationSettingsModal({
+  onClose,
+  colors,
+  notificationSettings,
+  setNotificationSettings,
+  notificationManager
+}) {
+  const [settings, setSettings] = useState(notificationSettings);
+
+  const handleSave = useCallback(() => {
+    setNotificationSettings(settings);
+    try {
+      localStorage.setItem('doit-notification-settings', JSON.stringify(settings));
+    } catch (e) {
+      console.warn('Failed to save notification settings:', e);
+    }
+    onClose();
+  }, [settings, setNotificationSettings, onClose]);
+
+  const requestPermission = useCallback(async () => {
+    const granted = await notificationManager.requestPermission();
+    if (granted) {
+      setSettings(prev => ({ ...prev, enabled: true }));
+    }
+  }, [notificationManager]);
+
+  return (
+    <motion.div
+      initial={{ scale: 0.95, y: 20 }}
+      animate={{ scale: 1, y: 0 }}
+      exit={{ scale: 0.95, y: 20 }}
+      transition={{ duration: 0.15 }}
+      className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto`}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className={`p-4 border-b ${colors.border} flex justify-between items-center`}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+            <FiBell className="text-indigo-600 dark:text-indigo-400" size={16} />
+          </div>
+          <h3 className={`text-lg font-semibold ${colors.text}`}>Notification Settings</h3>
+        </div>
+        <button
+          onClick={onClose}
+          className={`p-2 rounded-lg ${colors.muted} hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors`}
+        >
+          <FiX size={20} />
+        </button>
+      </div>
+
+      <div className="p-6 space-y-6">
+        {/* Permission Status */}
+        <div className={`p-4 rounded-lg ${notificationManager.canShowNotifications()
+          ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+          : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
+          }`}>
+          <div className="flex items-start gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${notificationManager.canShowNotifications()
+                ? 'bg-green-100 dark:bg-green-800'
+                : 'bg-yellow-100 dark:bg-yellow-800'
+              }`}>
+              {notificationManager.canShowNotifications() ? (
+                <FiBell className="text-green-600 dark:text-green-400" size={16} />
+              ) : (
+                <FiBellOff className="text-yellow-600 dark:text-yellow-400" size={16} />
+              )}
+            </div>
+            <div className="flex-1">
+              <p className={`text-sm font-medium ${notificationManager.canShowNotifications() ? 'text-green-800 dark:text-green-200' : 'text-yellow-800 dark:text-yellow-200'
+                }`}>
+                {notificationManager.canShowNotifications()
+                  ? 'Notifications Enabled'
+                  : 'Notifications Permission Needed'
+                }
+              </p>
+              <p className={`text-xs mt-1 ${notificationManager.canShowNotifications() ? 'text-green-600 dark:text-green-300' : 'text-yellow-600 dark:text-yellow-300'
+                }`}>
+                {notificationManager.canShowNotifications()
+                  ? 'DoIT can send you helpful reminders and updates.'
+                  : 'Allow notifications to get reminders about your tasks.'
+                }
+              </p>
+              {!notificationManager.canShowNotifications() && (
+                <button
+                  onClick={requestPermission}
+                  className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-yellow-600 hover:bg-yellow-700 text-white transition-colors"
+                >
+                  Enable Notifications
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Settings */}
+        <div className="space-y-4">
+          {/* Master Toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className={`font-medium ${colors.text}`}>Enable Notifications</h4>
+              <p className={`text-sm ${colors.muted}`}>Receive helpful reminders and updates</p>
+            </div>
+            <button
+              onClick={() => setSettings(prev => ({ ...prev, enabled: !prev.enabled }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.enabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+                }`}
+              disabled={!notificationManager.canShowNotifications()}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+              />
+            </button>
+          </div>
+
+          {settings.enabled && (
+            <>
+              {/* Overdue Tasks */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className={`font-medium ${colors.text}`}>Overdue Task Alerts</h4>
+                  <p className={`text-sm ${colors.muted}`}>Get notified about overdue tasks</p>
+                </div>
+                <button
+                  onClick={() => setSettings(prev => ({ ...prev, overdue: !prev.overdue }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.overdue ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.overdue ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                  />
+                </button>
+              </div>
+
+              {/* Empty Task List */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className={`font-medium ${colors.text}`}>Empty Task Reminders</h4>
+                  <p className={`text-sm ${colors.muted}`}>Remind to add tasks when list is empty</p>
+                </div>
+                <button
+                  onClick={() => setSettings(prev => ({ ...prev, noTasks: !prev.noTasks }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.noTasks ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.noTasks ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                  />
+                </button>
+              </div>
+
+              {/* Too Many Tasks */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className={`font-medium ${colors.text}`}>Task Completion Reminders</h4>
+                  <p className={`text-sm ${colors.muted}`}>Remind to complete tasks when list gets full</p>
+                </div>
+                <button
+                  onClick={() => setSettings(prev => ({ ...prev, tooMany: !prev.tooMany }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.tooMany ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.tooMany ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                  />
+                </button>
+              </div>
+
+              {/* Morning Reminders */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className={`font-medium ${colors.text}`}>Morning Planning</h4>
+                  <p className={`text-sm ${colors.muted}`}>Daily morning reminder to plan tasks (9:00 AM)</p>
+                </div>
+                <button
+                  onClick={() => setSettings(prev => ({ ...prev, morning: !prev.morning }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.morning ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.morning ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                  />
+                </button>
+              </div>
+
+              {/* Evening Review */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className={`font-medium ${colors.text}`}>Evening Review</h4>
+                  <p className={`text-sm ${colors.muted}`}>Daily evening reminder to review and plan (7:00 PM)</p>
+                </div>
+                <button
+                  onClick={() => setSettings(prev => ({ ...prev, evening: !prev.evening }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.evening ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.evening ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                  />
+                </button>
+              </div>
+
+              {/* Threshold Setting */}
+              <div>
+                <h4 className={`font-medium ${colors.text} mb-2`}>Too Many Tasks Threshold</h4>
+                <p className={`text-sm ${colors.muted} mb-3`}>
+                  Show reminder when you have more than {settings.tooManyThreshold} incomplete tasks
+                </p>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="5"
+                    max="20"
+                    value={settings.tooManyThreshold}
+                    onChange={(e) => setSettings(prev => ({ ...prev, tooManyThreshold: parseInt(e.target.value) }))}
+                    className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className={`text-sm font-medium ${colors.text} min-w-[2rem] text-center`}>
+                    {settings.tooManyThreshold}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Save Button */}
+        <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+          <button
+            onClick={onClose}
+            className={`px-4 py-2 rounded-lg ${colors.secondary} ${colors.text} hover:opacity-80 transition-opacity`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className={`px-4 py-2 rounded-lg ${colors.primary} text-white hover:opacity-90 transition-opacity`}
+          >
+            Save Settings
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+});
 
 // Image Modal Slider Component
 const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors }) {
@@ -227,13 +622,11 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
     setTimeout(onClose, 150);
   }, [onClose]);
 
-  // Auto-advance slides every 6 seconds
   useEffect(() => {
     const interval = setInterval(nextSlide, 6000);
     return () => clearInterval(interval);
   }, [nextSlide]);
 
-  // Keyboard navigation
   useEffect(() => {
     const handleKeyPress = (e) => {
       switch (e.key) {
@@ -269,7 +662,6 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
         className={`relative w-full max-w-md mx-auto ${colors.card} rounded-2xl overflow-hidden shadow-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close Button */}
         <button
           onClick={handleClose}
           className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/30 transition-all duration-200"
@@ -278,7 +670,6 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
           <FiX size={20} />
         </button>
 
-        {/* Image Container */}
         <div className="relative aspect-[3/4]">
           <AnimatePresence mode="wait">
             <motion.img
@@ -294,7 +685,6 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
             />
           </AnimatePresence>
 
-          {/* Navigation Arrows */}
           <button
             onClick={prevSlide}
             className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/30 transition-all duration-200 hover:scale-110"
@@ -311,15 +701,14 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
             <FiChevronRight size={20} />
           </button>
 
-          {/* Slide Indicators */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
             {SLIDER_IMAGES.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setCurrentSlide(index)}
                 className={`w-2 h-2 rounded-full transition-all duration-300 ${index === currentSlide
-                    ? 'bg-white w-6'
-                    : 'bg-white/50 hover:bg-white/70'
+                  ? 'bg-white w-6'
+                  : 'bg-white/50 hover:bg-white/70'
                   }`}
                 aria-label={`Go to slide ${index + 1}`}
               />
@@ -327,7 +716,6 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
           </div>
         </div>
 
-        {/* Content Section */}
         <div className="p-6">
           <AnimatePresence mode="wait">
             <motion.div
@@ -347,7 +735,6 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
             </motion.div>
           </AnimatePresence>
 
-          {/* Action Button */}
           <motion.button
             onClick={handleClose}
             className={`w-full py-3 px-6 rounded-xl ${colors.primary} text-white font-medium hover:opacity-90 transition-all duration-200 flex items-center justify-center gap-2`}
@@ -362,7 +749,7 @@ const ImageModalSlider = React.memo(function ImageModalSlider({ onClose, colors 
   );
 });
 
-// FIXED Hook for managing visit count and modal display
+// Hook for managing visit count and modal display
 const useVisitModal = () => {
   const [shouldShowModal, setShouldShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -370,25 +757,19 @@ const useVisitModal = () => {
   useEffect(() => {
     const checkVisitCount = () => {
       try {
-        // FIRST: Check if app is running as PWA - if yes, never show modal
         const isPWAMode = PWADetector.isPWA();
 
         if (isPWAMode) {
-          console.log('PWA detected - modal will not be shown');
           setShouldShowModal(false);
           setIsLoading(false);
           return;
         }
 
-        // SECOND: Check if recently installed (within last hour)
         if (PWADetector.isRecentlyInstalled()) {
-          console.log('Recently installed as PWA - modal will not be shown');
           setShouldShowModal(false);
           setIsLoading(false);
           return;
         }
-
-        console.log('Running in browser mode - checking visit count');
 
         let visitData = { count: 0, lastVisit: null };
 
@@ -419,7 +800,6 @@ const useVisitModal = () => {
           }
         }
 
-        console.log(`Visit count: ${visitData.count}, Should show modal: ${shouldShow}`);
         setShouldShowModal(shouldShow);
       } catch (error) {
         console.warn('Failed to check visit count:', error);
@@ -429,7 +809,6 @@ const useVisitModal = () => {
       }
     };
 
-    // Delay to ensure DOM is ready and PWA detection works properly
     const timer = setTimeout(checkVisitCount, 1000);
     return () => clearTimeout(timer);
   }, []);
@@ -447,26 +826,22 @@ const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
-    // Don't show prompt if already running as PWA
     if (PWADetector.isPWA()) {
       return;
     }
 
     const handler = (e) => {
       e.preventDefault();
-      console.log('beforeinstallprompt fired');
       setDeferredPrompt(e);
 
-      // Check if user has previously dismissed
       try {
         const pwaStatus = localStorage.getItem('doit-pwa-dismissed');
         const dismissTime = localStorage.getItem('doit-pwa-dismiss-time');
 
-        // Show prompt again after 3 days if previously dismissed
         if (pwaStatus === 'true' && dismissTime) {
           const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
           if (parseInt(dismissTime) > threeDaysAgo) {
-            return; // Still in dismissal period
+            return;
           }
         }
 
@@ -476,14 +851,11 @@ const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
       }
     };
 
-    // Listen for successful installation
     const installHandler = () => {
-      console.log('App installed successfully');
       PWADetector.markAsInstalled();
       setShowPrompt(false);
       setDeferredPrompt(null);
 
-      // Clear dismissal status since app is now installed
       try {
         localStorage.removeItem('doit-pwa-dismissed');
         localStorage.removeItem('doit-pwa-dismiss-time');
@@ -504,10 +876,8 @@ const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
   const handleInstall = useCallback(async () => {
     if (!deferredPrompt) return;
 
-    console.log('User clicked install');
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    console.log('User choice outcome:', outcome);
 
     if (outcome === 'accepted') {
       PWADetector.markAsInstalled();
@@ -517,7 +887,6 @@ const PWAInstallPrompt = React.memo(function PWAInstallPrompt({ colors }) {
   }, [deferredPrompt]);
 
   const dismissPrompt = useCallback(() => {
-    console.log('User dismissed install prompt');
     try {
       localStorage.setItem('doit-pwa-dismissed', 'true');
       localStorage.setItem('doit-pwa-dismiss-time', Date.now().toString());
@@ -658,7 +1027,6 @@ const CustomDatePicker = React.memo(function CustomDatePicker({
       days.push(<div key={`empty-${i}`} className="w-10 h-10" />);
     }
 
-    // Days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
       const isToday = date.toDateString() === today.toDateString();
@@ -699,7 +1067,6 @@ const CustomDatePicker = React.memo(function CustomDatePicker({
       transition={{ duration: 0.15 }}
       className={`${colors.card} rounded-xl border ${colors.border} shadow-2xl ${className} overflow-hidden`}
     >
-      {/* Quick Select */}
       <div className={`p-4 border-b ${colors.border}`}>
         <div className="flex flex-wrap gap-2">
           {[
@@ -718,7 +1085,6 @@ const CustomDatePicker = React.memo(function CustomDatePicker({
         </div>
       </div>
 
-      {/* Calendar Header */}
       <div className={`flex items-center justify-between p-4 border-b ${colors.border}`}>
         <button
           onClick={() => navigateMonth(-1)}
@@ -737,7 +1103,6 @@ const CustomDatePicker = React.memo(function CustomDatePicker({
         </button>
       </div>
 
-      {/* Calendar Grid */}
       <div className="p-4">
         <div className="grid grid-cols-7 gap-1 mb-2">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
@@ -751,7 +1116,6 @@ const CustomDatePicker = React.memo(function CustomDatePicker({
         </div>
       </div>
 
-      {/* Time Selection */}
       <div className={`p-4 border-t ${colors.border}`}>
         <div className="flex items-center gap-4 mb-4">
           <div className="flex-1">
@@ -784,7 +1148,6 @@ const CustomDatePicker = React.memo(function CustomDatePicker({
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex justify-between items-center">
           <button
             onClick={() => onDateSelect(null)}
@@ -850,7 +1213,6 @@ const TaskInput = React.memo(function TaskInput({
     setShowDatePicker(false);
   }, [setSelectedDate, setShowDatePicker]);
 
-  // Close date picker when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (datePickerRef.current &&
@@ -910,7 +1272,6 @@ const TaskInput = React.memo(function TaskInput({
         </motion.button>
       </div>
 
-      {/* Selected date preview */}
       {selectedDate && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -931,7 +1292,6 @@ const TaskInput = React.memo(function TaskInput({
         </motion.div>
       )}
 
-      {/* Date Picker */}
       <AnimatePresence>
         {showDatePicker && (
           <div className="absolute top-full left-0 right-0 mt-2 z-50">
@@ -1074,14 +1434,53 @@ const ModalBackdrop = React.memo(function ModalBackdrop({ children, onClose }) {
 // Main DoIT Component
 export default function DoIT() {
   const inputRef = useRef(null);
+  const notificationManager = useRef(new NotificationManager()).current;
 
-  // Visit modal hook - FIXED VERSION
+  // Visit modal hook
   const { shouldShowModal, closeModal: closeVisitModal, isLoading } = useVisitModal();
 
-  // Simplified modal state
+  // Notification state
+  const [notifications, setNotifications] = useState([]);
+  const [notificationSettings, setNotificationSettings] = useState(() => {
+    try {
+      if (typeof Storage !== 'undefined' && localStorage) {
+        const saved = localStorage.getItem('doit-notification-settings');
+        return saved ? JSON.parse(saved) : {
+          enabled: false,
+          overdue: true,
+          noTasks: true,
+          tooMany: true,
+          morning: true,
+          evening: true,
+          tooManyThreshold: 10
+        };
+      }
+      return {
+        enabled: false,
+        overdue: true,
+        noTasks: true,
+        tooMany: true,
+        morning: true,
+        evening: true,
+        tooManyThreshold: 10
+      };
+    } catch {
+      return {
+        enabled: false,
+        overdue: true,
+        noTasks: true,
+        tooMany: true,
+        morning: true,
+        evening: true,
+        tooManyThreshold: 10
+      };
+    }
+  });
+
+  // Modal state
   const [modal, setModal] = useState(null);
 
-  // State with better initialization
+  // State initialization
   const [tasks, setTasks] = useState(() => {
     try {
       if (typeof Storage !== 'undefined' && localStorage) {
@@ -1154,7 +1553,7 @@ export default function DoIT() {
       });
   }, [tasks, filter]);
 
-  // Optimized stats calculation
+  // Stats calculation
   const stats = useMemo(() => {
     const completed = tasks.filter(t => t.completed).length;
     const total = tasks.length;
@@ -1166,7 +1565,60 @@ export default function DoIT() {
     };
   }, [tasks]);
 
-  // Simplified modal handlers
+  // Notification functions
+  const addNotification = useCallback((type, title, message, actions = null) => {
+    if (!notificationSettings.enabled || !notificationSettings[type]) return;
+
+    const notification = {
+      id: genId(),
+      type,
+      title,
+      message,
+      timestamp: Date.now(),
+      actions,
+      autoDismiss: true,
+      duration: 8000
+    };
+
+    setNotifications(prev => [notification, ...prev.slice(0, 4)]); // Keep max 5 notifications
+
+    // Show browser notification if permission granted
+    if (notificationManager.canShowNotifications()) {
+      notificationManager.showNotification(title, {
+        body: message,
+        tag: `doit-${type}`,
+        renotify: true
+      });
+    }
+
+    // Auto dismiss
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== notification.id));
+    }, notification.duration);
+  }, [notificationSettings, notificationManager]);
+
+  const dismissNotification = useCallback((id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+
+  const handleNotificationAction = useCallback((id, action) => {
+    dismissNotification(id);
+
+    switch (action) {
+      case 'addTask':
+        inputRef.current?.focus();
+        break;
+      case 'viewTasks':
+        setFilter('active');
+        break;
+      case 'planDay':
+        setFilter('all');
+        inputRef.current?.focus();
+        break;
+    }
+  }, [dismissNotification]);
+
+  // Modal handlers
   const openModal = useCallback((type, data = null) => {
     setModal({ type, data });
   }, []);
@@ -1175,7 +1627,7 @@ export default function DoIT() {
     setModal(null);
   }, []);
 
-  // Optimized persistence effects
+  // Persistence effects
   useEffect(() => {
     if (typeof Storage !== 'undefined' && localStorage) {
       try {
@@ -1215,7 +1667,18 @@ export default function DoIT() {
     inputRef.current?.focus();
   }, []);
 
-  // Optimized handlers
+  // Notification effects
+  useEffect(() => {
+    if (typeof Storage !== 'undefined' && localStorage) {
+      try {
+        localStorage.setItem('doit-notification-settings', JSON.stringify(notificationSettings));
+      } catch (e) {
+        console.warn('Failed to save notification settings:', e);
+      }
+    }
+  }, [notificationSettings]);
+
+  // Task handlers
   const addTask = useCallback((inputValue, selectedDateValue) => {
     if (!inputValue.trim() || isProcessing) return;
 
@@ -1598,20 +2061,21 @@ export default function DoIT() {
           <button
             onClick={closeModal}
             className={`px-4 py-2 rounded-lg ${colors.secondary} ${colors.text} hover:opacity-80 transition-opacity`}
+            disabled={isProcessing}
           >
             Cancel
           </button>
           <button
             onClick={clearCompleted}
-            className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition-colors"
-            disabled={completedCount === 0}
+            className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition-colors disabled:opacity-50"
+            disabled={isProcessing || completedCount === 0}
           >
-            Clear Completed
+            {isProcessing ? 'Clearing...' : 'Clear Completed'}
           </button>
         </div>
       </motion.div>
     );
-  }, [tasks, colors, closeModal, clearCompleted]);
+  }, [tasks, colors, closeModal, clearCompleted, isProcessing]);
 
   // Footer Modal Component
   const FooterModal = useCallback(() => {
@@ -1645,6 +2109,7 @@ export default function DoIT() {
                   <li>Dark/light mode with system preference</li>
                   <li>Task priorities and due dates</li>
                   <li>Progress tracking and streaks</li>
+                  <li>Smart notifications and reminders</li>
                   <li>Responsive design for all devices</li>
                   <li>Keyboard-friendly interface</li>
                   <li>Smooth animations and transitions</li>
@@ -1663,7 +2128,7 @@ export default function DoIT() {
                 </div>
                 <div>
                   <h3 className={`text-lg font-semibold ${colors.text}`}>DoIT Task Manager</h3>
-                  <p className={`text-sm ${colors.muted}`}>Version 2.0.0</p>
+                  <p className={`text-sm ${colors.muted}`}>Version 2.1.0</p>
                 </div>
               </div>
               <div className={`text-sm ${colors.text} space-y-2`}>
@@ -1683,10 +2148,22 @@ export default function DoIT() {
                   <span>Current Streak:</span>
                   <span>{meta.streak?.current || 0} days</span>
                 </div>
+                <div className="flex justify-between">
+                  <span>Notifications:</span>
+                  <span>{notificationSettings.enabled ? 'Enabled' : 'Disabled'}</span>
+                </div>
               </div>
               <div className={`mt-4 pt-4 border-t ${colors.border} text-center`}>
                 <p className={`text-xs ${colors.muted}`}>
-                  Made with <FiHeart className="inline text-red-500 mx-1" /> by <a style={{ textDecoration: 'underline' }} href="https://sahilmaurya.vercel.app" target='_blank'>Sahil Maurya</a>
+                  Made with <FiHeart className="inline text-red-500 mx-1" /> by{' '}
+                  <a 
+                    href="https://sahilmaurya.vercel.app" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="underline hover:text-indigo-600 transition-colors"
+                  >
+                    Sahil Maurya
+                  </a>
                 </p>
               </div>
             </>
@@ -1694,7 +2171,7 @@ export default function DoIT() {
         default:
           return null;
       }
-    }, [modal?.type, colors, tasks, meta]);
+    }, [modal?.type, colors, tasks, meta, notificationSettings]);
 
     return (
       <motion.div
@@ -1727,7 +2204,7 @@ export default function DoIT() {
         </div>
       </motion.div>
     );
-  }, [modal?.type, colors, tasks, meta, closeModal]);
+  }, [modal?.type, colors, tasks, meta, notificationSettings, closeModal]);
 
   const renderModalContent = useCallback(() => {
     if (!modal) return null;
@@ -1741,6 +2218,16 @@ export default function DoIT() {
         return <ClearAllModal />;
       case 'clearCompleted':
         return <ClearCompletedModal />;
+      case 'notificationSettings':
+        return (
+          <NotificationSettingsModal
+            onClose={closeModal}
+            colors={colors}
+            notificationSettings={notificationSettings}
+            setNotificationSettings={setNotificationSettings}
+            notificationManager={notificationManager}
+          />
+        );
       case 'privacy':
       case 'about':
       case 'version':
@@ -1748,7 +2235,7 @@ export default function DoIT() {
       default:
         return null;
     }
-  }, [modal, EditModal, DeleteTaskModal, ClearAllModal, ClearCompletedModal, FooterModal]);
+  }, [modal, EditModal, DeleteTaskModal, ClearAllModal, ClearCompletedModal, FooterModal, closeModal, colors, notificationSettings, setNotificationSettings, notificationManager]);
 
   return (
     <div className={`min-h-screen ${colors.background} transition-colors duration-300`}>
@@ -1769,7 +2256,7 @@ export default function DoIT() {
         )}
       </AnimatePresence>
 
-      {/* FIXED Visit Modal - Only show when NOT PWA and NOT loading */}
+      {/* Visit Modal */}
       <AnimatePresence>
         {shouldShowModal && !isLoading && !PWADetector.isPWA() && (
           <div className="block lg:hidden">
@@ -1777,6 +2264,22 @@ export default function DoIT() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Notifications Container */}
+      <div className="fixed top-4 right-4 z-40 space-y-3 max-w-sm w-full pointer-events-none">
+        <AnimatePresence mode="popLayout">
+          {notifications.map(notification => (
+            <div key={notification.id} className="pointer-events-auto">
+              <NotificationCard
+                notification={notification}
+                onDismiss={dismissNotification}
+                onAction={handleNotificationAction}
+                colors={colors}
+              />
+            </div>
+          ))}
+        </AnimatePresence>
+      </div>
 
       <div className="max-w-4xl mx-auto p-4 md:p-6 pb-4 pt-4 relative">
         {/* Header */}
@@ -1787,6 +2290,22 @@ export default function DoIT() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Notification Settings Button */}
+            <button
+              onClick={() => openModal('notificationSettings')}
+              className={`p-3 rounded-xl ${colors.card} border ${colors.border} hover:scale-105 transition-all shadow-sm relative`}
+              aria-label="Notification settings"
+            >
+              {notificationSettings.enabled ? (
+                <FiBell className={`${colors.text}`} size={20} />
+              ) : (
+                <FiBellOff className={colors.muted} size={20} />
+              )}
+              {notificationSettings.enabled && notifications.length > 0 && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+              )}
+            </button>
+
             <button
               onClick={() => {
                 const newTheme = theme === 'light' ? 'dark' : 'light';
@@ -1813,6 +2332,7 @@ export default function DoIT() {
                 <span className="hidden sm:inline">Clear Completed</span>
               </div>
             </button>
+
             <button
               onClick={() => openModal('clearAll')}
               className={`px-4 py-3 rounded-xl ${colors.card} border ${colors.border} text-sm font-medium hover:scale-105 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${colors.text}`}
@@ -1881,8 +2401,8 @@ export default function DoIT() {
               key={f}
               onClick={() => setFilter(f)}
               className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap border transition-all ${filter === f
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
-                : `${colors.card} ${colors.text} ${colors.border} hover:scale-105 hover:shadow-sm`
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
+                  : `${colors.card} ${colors.text} ${colors.border} hover:scale-105 hover:shadow-sm`
                 }`}
               disabled={isProcessing}
             >
@@ -2039,12 +2559,22 @@ export default function DoIT() {
                 className={`flex items-center gap-2 text-sm ${colors.muted} hover:${colors.text} transition-colors`}
               >
                 <FiCheckCircle size={16} />
-                <span>v2.0.0</span>
+                <span>v2.1.0</span>
               </button>
             </div>
-            <span className="sm:-ml-10"><p className={`text-xs ${colors.muted}`}>
-              Made with <FiHeart className="inline text-red-500 mx-1" /> by <a style={{ textDecoration: 'underline' }} href="https://sahilmaurya.vercel.app" target='_blank'>Sahil Maurya</a>
-            </p></span>
+            <span className="sm:-ml-10">
+              <p className={`text-xs ${colors.muted}`}>
+                Made with <FiHeart className="inline text-red-500 mx-1" /> by{' '}
+                <a 
+                  href="https://sahilmaurya.vercel.app" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="underline hover:text-indigo-600 transition-colors"
+                >
+                  Sahil Maurya
+                </a>
+              </p>
+            </span>
 
             <div className="flex items-center gap-4">
               <a
@@ -2070,7 +2600,7 @@ export default function DoIT() {
         </motion.footer>
       </div>
 
-      {/* PWA Install Prompt - Enhanced Version */}
+      {/* PWA Install Prompt */}
       <PWAInstallPrompt colors={colors} />
 
       {/* Modals */}
@@ -2090,7 +2620,7 @@ export default function DoIT() {
             initial={{ opacity: 0, y: 50, scale: 0.3 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
-            className="fixed bottom-4 right-4 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg z-50 font-medium text-sm max-w-sm"
+            className="fixed bottom-4 left-4 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg z-50 font-medium text-sm max-w-sm"
           >
             {toast.message}
           </motion.div>
