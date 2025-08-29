@@ -63,17 +63,17 @@ const NOTIFICATION_MESSAGES = {
 // Image Modal Slider Images
 const SLIDER_IMAGES = [
   {
-    src: "/api/placeholder/400/600",
+    src: "/step-1.jpg",
     title: "Install App",
     description: "Click on three dot in the top right corner."
   },
   {
-    src: "/api/placeholder/400/600",
+    src: "/step-2.jpg",
     title: "Install App",
     description: "Click on Add to Home Screen Button."
   },
   {
-    src: "/api/placeholder/400/600",
+    src: "/step-3.jpg",
     title: "Install App",
     description: "Click on Install Button"
   }
